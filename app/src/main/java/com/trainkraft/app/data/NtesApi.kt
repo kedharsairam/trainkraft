@@ -24,6 +24,7 @@ import java.util.concurrent.TimeUnit
  */
 object NtesApi {
 
+    private const val TAG = "NtesApi"
     private const val BASE_URL = "https://enquiry.indianrail.gov.in/crisns/AppServAnd"
     private const val USER_AGENT = "Dalvik/2.1.0 (Linux; Android 11)"
     private val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
@@ -50,7 +51,9 @@ object NtesApi {
 
     private suspend fun request(payload: String, keys: NtesKeys = NtesKeys()): Result<String> = withContext(Dispatchers.IO) {
         runCatching {
+            android.util.Log.d(TAG, "Request payload: $payload")
             val bodyJson = JSONObject().put("jsonIn", NtesCrypto.encrypt(payload, keys)).toString()
+            android.util.Log.d(TAG, "POST $BASE_URL")
             val request = Request.Builder()
                 .url(BASE_URL)
                 .header("Content-Type", "application/json")
@@ -59,7 +62,9 @@ object NtesApi {
                 .build()
 
             client.newCall(request).execute().use { response ->
+                android.util.Log.d(TAG, "HTTP ${response.code}")
                 val text = response.body?.string().orEmpty()
+                android.util.Log.d(TAG, "Response length: ${text.length}")
                 if (text.isBlank()) throw IllegalStateException("empty response")
                 val data = JSONObject(text)
 
