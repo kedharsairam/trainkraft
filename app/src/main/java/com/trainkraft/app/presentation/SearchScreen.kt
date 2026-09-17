@@ -16,6 +16,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Train
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material3.HorizontalDivider
@@ -64,6 +65,7 @@ fun trainTypeLabel(type: String?): String {
 fun SearchScreen(
     onTrainClick: (String) -> Unit,
     onStationClick: (String) -> Unit,
+    onSettingsClick: () -> Unit = {},
     viewModel: SearchViewModel = viewModel(),
 ) {
     val query by viewModel.query.collectAsState()
@@ -75,6 +77,27 @@ fun SearchScreen(
     LaunchedEffect(Unit) { focusRequester.requestFocus() }
 
     Column(modifier = Modifier.fillMaxSize()) {
+        // App bar
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(
+                    start = KraftSpacing.spacing16,
+                    end = KraftSpacing.spacing8,
+                    top = KraftSpacing.spacing16,
+                ),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = "TrainKraft",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.weight(1f),
+            )
+            IconButton(onClick = onSettingsClick) {
+                Icon(Icons.Filled.Settings, contentDescription = "Settings")
+            }
+        }
         // Search bar
         TextField(
             value = query,

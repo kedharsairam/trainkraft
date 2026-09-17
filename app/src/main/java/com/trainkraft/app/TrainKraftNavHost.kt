@@ -12,6 +12,8 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.trainkraft.app.presentation.SearchScreen
+import com.trainkraft.app.presentation.SettingsScreen
+import com.trainkraft.app.presentation.StationBoardScreen
 import com.trainkraft.app.presentation.TrainDetailScreen
 
 object TrainKraftDestinations {
@@ -42,6 +44,9 @@ fun TrainKraftNavHost() {
                 onStationClick = { code ->
                     navController.navigate(TrainKraftDestinations.stationBoard(code))
                 },
+                onSettingsClick = {
+                    navController.navigate(TrainKraftDestinations.SETTINGS)
+                },
             )
         }
         composable(
@@ -61,10 +66,16 @@ fun TrainKraftNavHost() {
             arguments = listOf(navArgument("stationCode") { type = NavType.StringType })
         ) { backStackEntry ->
             val stationCode = backStackEntry.arguments?.getString("stationCode").orEmpty()
-            PlaceholderScreen("Station $stationCode")
+            StationBoardScreen(
+                stationCode = stationCode,
+                onBack = { navController.popBackStack() },
+                onTrainClick = { number ->
+                    navController.navigate(TrainKraftDestinations.trainDetail(number))
+                },
+            )
         }
         composable(TrainKraftDestinations.SETTINGS) {
-            PlaceholderScreen("Settings")
+            SettingsScreen(onBack = { navController.popBackStack() })
         }
     }
 }
