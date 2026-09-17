@@ -39,6 +39,9 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
     private val _trainResults = MutableStateFlow<List<TrainEntity>>(emptyList())
     val trainResults: StateFlow<List<TrainEntity>> = _trainResults.asStateFlow()
 
+    private val _dbError = MutableStateFlow<String?>(null)
+    val dbError: StateFlow<String?> = _dbError.asStateFlow()
+
     @OptIn(FlowPreview::class)
     val hasResults: StateFlow<Boolean> = combine(_stationResults, _trainResults) { s, t ->
         s.isNotEmpty() || t.isNotEmpty()
@@ -51,21 +54,36 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
                 .debounce(300)
                 .distinctUntilChanged()
                 .collect { q ->
-                    val trimmed = q.trim()
-                    if (trimmed.isEmpty()) {
-                        _stationResults.value = emptyList()
-                        _trainResults.value = emptyList()
-                        _isSearching.value = false
-                    } else {
-                        _isSearching.value = true
-                        try {
-                            _stationResults.value = dao.searchStations(trimmed)
-                            _trainResults.value = dao.searchTrains(trimmed)
-                        } finally {
-                            _isSearching.value = false
-                        }
-                    }
+                    search(q)
                 }
+        }
+    }
+
+    private suspend fun search(q: String) {
+        val trimmed = q.trim()
+        if (trimmed.isEmpty()) {
+            _stationResults.value = emptyList()
+            _trainResults.value = emptyList()
+            _dbError.value = null
+            _isSearching.value = false
+        } else {
+            _isSearching.value = true
+            try {
+                _stationResults.value = dao.searchStations(trimmed)
+                _trainResults.value = dao.searchTrains(trimmed)
+                _dbError.value = null
+            } catch (e: Exception) {
+                _dbError.value = e.message ?: "Database error"
+            } finally {
+                _isSearching.value = false
+            }
+        }
+    }
+
+    /** Re-runs the current query (used by the Retry button after a DB error). */
+    fun retrySearch() {
+        viewModelScope.launch {
+            search(_query.value)
         }
     }
 

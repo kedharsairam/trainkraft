@@ -6,7 +6,7 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 
 /**
- * TrainKraft timetable database, version 1.
+ * TrainKraft timetable database, version 2.
  *
  * Entities mirror the GTFS source (columns verified by caller):
  * stops.txt -> [StationEntity], routes.txt -> [TrainEntity],
@@ -19,8 +19,9 @@ import androidx.room.RoomDatabase
  * getInstance() on a fresh install (Room throws for a missing asset);
  * schema/DAO verification via assembleDebug is unaffected.
  *
- * [fallbackToDestructiveMigration] is enabled for v1 iteration; replace
- * with real migrations once the DB ships to users.
+ * [fallbackToDestructiveMigration] is enabled (no-arg, allows destructive
+ * rebuild) for pre-release iteration; replace with real migrations once
+ * the DB ships to users.
  */
 @Database(
     entities = [
@@ -52,7 +53,7 @@ abstract class TrainDatabase : RoomDatabase() {
                     DB_NAME
                 )
                     .createFromAsset(ASSET_NAME)
-                    .fallbackToDestructiveMigration(false)
+                    .fallbackToDestructiveMigration()
                     .build()
                 INSTANCE = instance
                 instance

@@ -141,7 +141,8 @@ object NtesConfig {
         val key = field("key", "KEY") ?: FALLBACK.key
         val iv = field("iv", "IV") ?: FALLBACK.iv
         val sckey = field("sckey", "SCKEY", "scKey", "sckey".uppercase()) ?: FALLBACK.sckey
-        if (key.isEmpty() || iv.isEmpty() || sckey.isEmpty()) return null
+        if (key.length != 16 || iv.length != 16) return null
+        if (sckey.isBlank()) return null
         return NtesKeys(key = key, iv = iv, sckey = sckey)
     }
 

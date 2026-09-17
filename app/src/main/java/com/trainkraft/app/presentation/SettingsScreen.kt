@@ -98,6 +98,11 @@ fun SettingsScreen(onBack: () -> Unit) {
                             },
                         )
                     },
+                    modifier = Modifier.clickable {
+                        scope.launch {
+                            SettingsStore.setAutoRefreshLive(appContext, !autoRefresh)
+                        }
+                    },
                 )
                 HorizontalDivider()
             }
