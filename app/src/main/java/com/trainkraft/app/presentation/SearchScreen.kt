@@ -44,17 +44,20 @@ import com.trainkraft.app.data.StationEntity
 import com.trainkraft.app.data.TrainEntity
 import com.trainkraft.app.ui.theme.KraftSpacing
 
-/** Shared train-type label (GTFS route_type verbatim, mapped for display). */
-fun trainTypeLabel(type: Int): String = when (type) {
-    0 -> "Tram"
-    1 -> "Metro"
-    2 -> "Rail"
-    3 -> "Bus"
-    4 -> "Ferry"
-    5 -> "Cable"
-    6 -> "Gondola"
-    7 -> "Funicular"
-    else -> "Type $type"
+/** Shared train-type label (GTFS route_type, may be null/unknown). */
+fun trainTypeLabel(type: String?): String {
+    if (type.isNullOrBlank()) return "Rail"
+    return when (type.trim()) {
+        "0" -> "Tram"
+        "1" -> "Metro"
+        "2" -> "Rail"
+        "3" -> "Bus"
+        "4" -> "Ferry"
+        "5" -> "Cable"
+        "6" -> "Gondola"
+        "7" -> "Funicular"
+        else -> if (type.length <= 12) type else "Rail"
+    }
 }
 
 @Composable

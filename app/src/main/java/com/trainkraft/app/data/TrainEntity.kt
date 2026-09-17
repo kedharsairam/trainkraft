@@ -31,5 +31,5 @@ data class TrainEntity(
     val name: String,
 
     @ColumnInfo(name = "type")
-    val type: Int
+    val type: String? = null
 )

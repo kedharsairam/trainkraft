@@ -11,7 +11,7 @@ import androidx.room.RoomDatabase
  * Entities mirror the GTFS source (columns verified by caller):
  * stops.txt -> [StationEntity], routes.txt -> [TrainEntity],
  * trips.txt -> [TripEntity], calendar.txt -> [CalendarEntity],
- * stop_times.txt -> [StopTimeEntity], plus [StationFts] (FTS4 index).
+ * stop_times.txt -> [StopTimeEntity]. No FTS (device SQLite lacks fts5).
  *
  * Pre-population: [Room.databaseBuilder.createFromAsset]("trains.db") is
  * wired in [getInstance] so dropping a `trains.db` file into
@@ -28,10 +28,9 @@ import androidx.room.RoomDatabase
         TrainEntity::class,
         TripEntity::class,
         CalendarEntity::class,
-        StopTimeEntity::class,
-        StationFts::class
+        StopTimeEntity::class
     ],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 abstract class TrainDatabase : RoomDatabase() {

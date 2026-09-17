@@ -34,12 +34,12 @@ DEFAULT_OUTPUT = Path(
 TRAIN_NUMBER_RE = re.compile(r"\d{5}")
 
 SCHEMA_SQL = """
-CREATE TABLE stations(stop_id TEXT PRIMARY KEY, code TEXT NOT NULL, name TEXT NOT NULL, lat REAL, lon REAL);
-CREATE TABLE trains(route_id TEXT PRIMARY KEY, train_number TEXT NOT NULL, name TEXT NOT NULL, type TEXT);
-CREATE TABLE trips(trip_id TEXT PRIMARY KEY, route_id TEXT NOT NULL, service_id TEXT NOT NULL);
-CREATE TABLE calendar(service_id TEXT PRIMARY KEY, mon INTEGER, tue INTEGER, wed INTEGER, thu INTEGER, fri INTEGER, sat INTEGER, sun INTEGER, start_date INTEGER, end_date INTEGER);
-CREATE TABLE stop_times(trip_id TEXT NOT NULL, seq INTEGER NOT NULL, stop_id TEXT NOT NULL, arr_min INTEGER, dep_min INTEGER, day_offset INTEGER DEFAULT 0, PRIMARY KEY(trip_id, seq));
-CREATE VIRTUAL TABLE stations_fts USING fts5(code, name, content='stations', content_rowid='rowid');
+CREATE TABLE stations(stop_id TEXT NOT NULL PRIMARY KEY, code TEXT NOT NULL, name TEXT NOT NULL, lat REAL, lon REAL);
+CREATE TABLE trains(route_id TEXT NOT NULL PRIMARY KEY, train_number TEXT NOT NULL, name TEXT NOT NULL, type TEXT);
+CREATE TABLE trips(trip_id TEXT NOT NULL PRIMARY KEY, route_id TEXT NOT NULL, service_id TEXT NOT NULL);
+CREATE TABLE calendar(service_id TEXT NOT NULL PRIMARY KEY, mon INTEGER, tue INTEGER, wed INTEGER, thu INTEGER, fri INTEGER, sat INTEGER, sun INTEGER, start_date INTEGER, end_date INTEGER);
+CREATE TABLE stop_times(trip_id TEXT NOT NULL, seq INTEGER NOT NULL, stop_id TEXT NOT NULL, arr_min INTEGER, dep_min INTEGER, day_offset INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(trip_id, seq));
+-- FTS disabled: device SQLite lacks fts5 module. Use LIKE search instead.
 """
 
 
@@ -272,16 +272,22 @@ def convert(gtfs_zip: Path, out_db: Path):
         )
         # FTS populate (rule 7)
         conn.execute(
-            "INSERT INTO stations_fts(rowid, code, name) SELECT rowid, code, name FROM stations"
+            "-- Skipped FTS populate"
         )
-        # Indexes (rule 8)
-        conn.execute("CREATE INDEX idx_stop_times_stop ON stop_times(stop_id)")
-        conn.execute("CREATE INDEX idx_trips_route ON trips(route_id)")
-        conn.execute("CREATE INDEX idx_trains_number ON trains(train_number)")
+        # Indexes (rule 8) — Room-expected names must match entity definitions exactly
+        conn.execute("CREATE INDEX IF NOT EXISTS `index_stop_times_stop_id` ON stop_times(stop_id)")
+        conn.execute("CREATE INDEX IF NOT EXISTS `index_trips_route_id` ON trips(route_id)")
+        conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS `index_trains_train_number` ON trains(train_number)")
+        conn.execute("CREATE INDEX IF NOT EXISTS `index_stations_code` ON stations(code)")
+        conn.execute("CREATE INDEX IF NOT EXISTS `index_stations_name` ON stations(name)")
+        conn.execute("CREATE INDEX IF NOT EXISTS `index_trains_name` ON trains(name)")
+        conn.execute("CREATE INDEX IF NOT EXISTS `index_trips_service_id` ON trips(service_id)")
+        conn.execute("CREATE INDEX IF NOT EXISTS `index_stop_times_trip_id` ON stop_times(trip_id)")
+        conn.execute("CREATE INDEX IF NOT EXISTS `index_stop_times_trip_id_seq` ON stop_times(trip_id, seq)")
         conn.commit()
 
         counts = {}
-        for table in ("stations", "trains", "trips", "calendar", "stop_times", "stations_fts"):
+        for table in ("stations", "trains", "trips", "calendar", "stop_times", ):
             counts[table] = conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
 
         conn.commit()
@@ -297,7 +303,7 @@ def convert(gtfs_zip: Path, out_db: Path):
     print(f"Input : {gtfs_zip}")
     print(f"Output: {out_db}")
     print(f"DB size: {size_bytes} bytes ({size_mb:.2f} MB)")
-    for table in ("stations", "trains", "trips", "calendar", "stop_times", "stations_fts"):
+    for table in ("stations", "trains", "trips", "calendar", "stop_times", ):
         print(f"  {table}: {counts[table]} rows")
     print(f"Skipped: {skipped_routes} routes (no train number), "
           f"{skipped_trips} trips (bad/orphan route), "
