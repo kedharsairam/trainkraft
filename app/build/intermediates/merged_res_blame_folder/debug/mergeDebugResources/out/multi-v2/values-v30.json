@@ -1,0 +1,19 @@
+{
+    "logs": [
+        {
+            "outputFile": "com.trainkraft.app-mergeDebugResources-52:/values-v30/values-v30.xml",
+            "map": [
+                {
+                    "source": "C:\\Users\\kedhar\\.gradle\\caches\\8.11.1\\transforms\\f130592669b28f8595aa041605331774\\transformed\\material3\\res\\values-v30\\values-v30.xml",
+                    "from": {
+                        "startLines": "2",
+                        "startColumns": "4",
+                        "startOffsets": "55",
+                        "endColumns": "72",
+                        "endOffsets": "123"
+                    }
+                }
+            ]
+        }
+    ]
+}

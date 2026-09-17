@@ -1,0 +1,10 @@
+[
+    {
+        "merged": "com.trainkraft.app-debug-54:/xml_data_extraction_rules.xml.flat",
+        "source": "com.trainkraft.app-main-56:/xml/data_extraction_rules.xml"
+    },
+    {
+        "merged": "com.trainkraft.app-debug-54:/xml_backup_rules.xml.flat",
+        "source": "com.trainkraft.app-main-56:/xml/backup_rules.xml"
+    }
+]
