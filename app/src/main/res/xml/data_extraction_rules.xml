@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<data-extraction-rules>
+    <!-- Train schedules are public data: allow DB backup. Only exclude user prefs/favorites. -->
+    <cloud-backup>
+        <exclude domain="sharedpref" path="trainkraft_settings" />
+        <exclude domain="sharedpref" path="trainkraft_favorites" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="sharedpref" path="trainkraft_settings" />
+        <exclude domain="sharedpref" path="trainkraft_favorites" />
+    </device-transfer>
+</data-extraction-rules>
