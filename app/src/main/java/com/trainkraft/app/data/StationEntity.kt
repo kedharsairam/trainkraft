@@ -29,8 +29,8 @@ data class StationEntity(
     val name: String,
 
     @ColumnInfo(name = "lat")
-    val lat: Double,
+    val lat: Double?,
 
     @ColumnInfo(name = "lon")
-    val lon: Double
+    val lon: Double?
 )
