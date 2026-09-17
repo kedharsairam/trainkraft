@@ -34,11 +34,11 @@ DEFAULT_OUTPUT = Path(
 TRAIN_NUMBER_RE = re.compile(r"\d{5}")
 
 SCHEMA_SQL = """
-CREATE TABLE stations(stopId TEXT PRIMARY KEY, code TEXT NOT NULL, name TEXT NOT NULL, lat REAL, lon REAL);
-CREATE TABLE trains(routeId TEXT PRIMARY KEY, trainNumber TEXT NOT NULL, name TEXT NOT NULL, type TEXT);
-CREATE TABLE trips(tripId TEXT PRIMARY KEY, routeId TEXT NOT NULL, serviceId TEXT NOT NULL);
-CREATE TABLE calendar(serviceId TEXT PRIMARY KEY, mon INTEGER, tue INTEGER, wed INTEGER, thu INTEGER, fri INTEGER, sat INTEGER, sun INTEGER, startDate INTEGER, endDate INTEGER);
-CREATE TABLE stop_times(tripId TEXT NOT NULL, seq INTEGER NOT NULL, stopId TEXT NOT NULL, arrMin INTEGER, depMin INTEGER, dayOffset INTEGER DEFAULT 0, PRIMARY KEY(tripId, seq));
+CREATE TABLE stations(stop_id TEXT PRIMARY KEY, code TEXT NOT NULL, name TEXT NOT NULL, lat REAL, lon REAL);
+CREATE TABLE trains(route_id TEXT PRIMARY KEY, train_number TEXT NOT NULL, name TEXT NOT NULL, type TEXT);
+CREATE TABLE trips(trip_id TEXT PRIMARY KEY, route_id TEXT NOT NULL, service_id TEXT NOT NULL);
+CREATE TABLE calendar(service_id TEXT PRIMARY KEY, mon INTEGER, tue INTEGER, wed INTEGER, thu INTEGER, fri INTEGER, sat INTEGER, sun INTEGER, start_date INTEGER, end_date INTEGER);
+CREATE TABLE stop_times(trip_id TEXT NOT NULL, seq INTEGER NOT NULL, stop_id TEXT NOT NULL, arr_min INTEGER, dep_min INTEGER, day_offset INTEGER DEFAULT 0, PRIMARY KEY(trip_id, seq));
 CREATE VIRTUAL TABLE stations_fts USING fts5(code, name, content='stations', content_rowid='rowid');
 """
 
@@ -249,24 +249,24 @@ def convert(gtfs_zip: Path, out_db: Path):
     try:
         conn.executescript(SCHEMA_SQL)
         conn.executemany(
-            "INSERT OR REPLACE INTO stations(stopId, code, name, lat, lon) VALUES (?,?,?,?,?)",
+            "INSERT OR REPLACE INTO stations(stop_id, code, name, lat, lon) VALUES (?,?,?,?,?)",
             stations,
         )
         conn.executemany(
-            "INSERT OR REPLACE INTO trains(routeId, trainNumber, name, type) VALUES (?,?,?,?)",
+            "INSERT OR REPLACE INTO trains(route_id, train_number, name, type) VALUES (?,?,?,?)",
             trains,
         )
         conn.executemany(
-            "INSERT OR REPLACE INTO trips(tripId, routeId, serviceId) VALUES (?,?,?)",
+            "INSERT OR REPLACE INTO trips(trip_id, route_id, service_id) VALUES (?,?,?)",
             trips,
         )
         conn.executemany(
-            "INSERT OR REPLACE INTO calendar(serviceId, mon, tue, wed, thu, fri, sat, sun, startDate, endDate)"
+            "INSERT OR REPLACE INTO calendar(service_id, mon, tue, wed, thu, fri, sat, sun, start_date, end_date)"
             " VALUES (?,?,?,?,?,?,?,?,?,?)",
             calendar,
         )
         conn.executemany(
-            "INSERT OR REPLACE INTO stop_times(tripId, seq, stopId, arrMin, depMin, dayOffset)"
+            "INSERT OR REPLACE INTO stop_times(trip_id, seq, stop_id, arr_min, dep_min, day_offset)"
             " VALUES (?,?,?,?,?,?)",
             stop_times,
         )
@@ -275,9 +275,9 @@ def convert(gtfs_zip: Path, out_db: Path):
             "INSERT INTO stations_fts(rowid, code, name) SELECT rowid, code, name FROM stations"
         )
         # Indexes (rule 8)
-        conn.execute("CREATE INDEX idx_stop_times_stop ON stop_times(stopId)")
-        conn.execute("CREATE INDEX idx_trips_route ON trips(routeId)")
-        conn.execute("CREATE INDEX idx_trains_number ON trains(trainNumber)")
+        conn.execute("CREATE INDEX idx_stop_times_stop ON stop_times(stop_id)")
+        conn.execute("CREATE INDEX idx_trips_route ON trips(route_id)")
+        conn.execute("CREATE INDEX idx_trains_number ON trains(train_number)")
         conn.commit()
 
         counts = {}

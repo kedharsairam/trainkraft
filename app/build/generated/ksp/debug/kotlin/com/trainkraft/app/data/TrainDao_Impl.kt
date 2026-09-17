@@ -42,8 +42,18 @@ public class TrainDao_Impl(
         statement.bindText(1, entity.stopId)
         statement.bindText(2, entity.code)
         statement.bindText(3, entity.name)
-        statement.bindDouble(4, entity.lat)
-        statement.bindDouble(5, entity.lon)
+        val _tmpLat: Double? = entity.lat
+        if (_tmpLat == null) {
+          statement.bindNull(4)
+        } else {
+          statement.bindDouble(4, _tmpLat)
+        }
+        val _tmpLon: Double? = entity.lon
+        if (_tmpLon == null) {
+          statement.bindNull(5)
+        } else {
+          statement.bindDouble(5, _tmpLon)
+        }
       }
     }
     this.__insertAdapterOfTrainEntity = object : EntityInsertAdapter<TrainEntity>() {
@@ -169,10 +179,18 @@ public class TrainDao_Impl(
           _tmpCode = _stmt.getText(_columnIndexOfCode)
           val _tmpName: String
           _tmpName = _stmt.getText(_columnIndexOfName)
-          val _tmpLat: Double
-          _tmpLat = _stmt.getDouble(_columnIndexOfLat)
-          val _tmpLon: Double
-          _tmpLon = _stmt.getDouble(_columnIndexOfLon)
+          val _tmpLat: Double?
+          if (_stmt.isNull(_columnIndexOfLat)) {
+            _tmpLat = null
+          } else {
+            _tmpLat = _stmt.getDouble(_columnIndexOfLat)
+          }
+          val _tmpLon: Double?
+          if (_stmt.isNull(_columnIndexOfLon)) {
+            _tmpLon = null
+          } else {
+            _tmpLon = _stmt.getDouble(_columnIndexOfLon)
+          }
           _item = StationEntity(_tmpStopId,_tmpCode,_tmpName,_tmpLat,_tmpLon)
           _result.add(_item)
         }
@@ -214,10 +232,18 @@ public class TrainDao_Impl(
           _tmpCode = _stmt.getText(_columnIndexOfCode)
           val _tmpName: String
           _tmpName = _stmt.getText(_columnIndexOfName)
-          val _tmpLat: Double
-          _tmpLat = _stmt.getDouble(_columnIndexOfLat)
-          val _tmpLon: Double
-          _tmpLon = _stmt.getDouble(_columnIndexOfLon)
+          val _tmpLat: Double?
+          if (_stmt.isNull(_columnIndexOfLat)) {
+            _tmpLat = null
+          } else {
+            _tmpLat = _stmt.getDouble(_columnIndexOfLat)
+          }
+          val _tmpLon: Double?
+          if (_stmt.isNull(_columnIndexOfLon)) {
+            _tmpLon = null
+          } else {
+            _tmpLon = _stmt.getDouble(_columnIndexOfLon)
+          }
           _item = StationEntity(_tmpStopId,_tmpCode,_tmpName,_tmpLat,_tmpLon)
           _result.add(_item)
         }
@@ -256,10 +282,18 @@ public class TrainDao_Impl(
           _tmpCode = _stmt.getText(_columnIndexOfCode)
           val _tmpName: String
           _tmpName = _stmt.getText(_columnIndexOfName)
-          val _tmpLat: Double
-          _tmpLat = _stmt.getDouble(_columnIndexOfLat)
-          val _tmpLon: Double
-          _tmpLon = _stmt.getDouble(_columnIndexOfLon)
+          val _tmpLat: Double?
+          if (_stmt.isNull(_columnIndexOfLat)) {
+            _tmpLat = null
+          } else {
+            _tmpLat = _stmt.getDouble(_columnIndexOfLat)
+          }
+          val _tmpLon: Double?
+          if (_stmt.isNull(_columnIndexOfLon)) {
+            _tmpLon = null
+          } else {
+            _tmpLon = _stmt.getDouble(_columnIndexOfLon)
+          }
           _item = StationEntity(_tmpStopId,_tmpCode,_tmpName,_tmpLat,_tmpLon)
           _result.add(_item)
         }

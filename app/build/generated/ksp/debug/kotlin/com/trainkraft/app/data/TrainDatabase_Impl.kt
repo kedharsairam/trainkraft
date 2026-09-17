@@ -35,9 +35,9 @@ public class TrainDatabase_Impl : TrainDatabase() {
 
   protected override fun createOpenDelegate(): RoomOpenDelegate {
     val _openDelegate: RoomOpenDelegate = object : RoomOpenDelegate(1,
-        "f937cddbe097bfac97516149eed279f3", "c35bf365dfd7f210719f49ed6e331602") {
+        "8f222d5a96955c3086ea29cd9204c827", "5ed763163416b9e1d652dfc774fa0a1a") {
       public override fun createAllTables(connection: SQLiteConnection) {
-        connection.execSQL("CREATE TABLE IF NOT EXISTS `stations` (`stop_id` TEXT NOT NULL, `code` TEXT NOT NULL, `name` TEXT NOT NULL, `lat` REAL NOT NULL, `lon` REAL NOT NULL, PRIMARY KEY(`stop_id`))")
+        connection.execSQL("CREATE TABLE IF NOT EXISTS `stations` (`stop_id` TEXT NOT NULL, `code` TEXT NOT NULL, `name` TEXT NOT NULL, `lat` REAL, `lon` REAL, PRIMARY KEY(`stop_id`))")
         connection.execSQL("CREATE INDEX IF NOT EXISTS `index_stations_code` ON `stations` (`code`)")
         connection.execSQL("CREATE INDEX IF NOT EXISTS `index_stations_name` ON `stations` (`name`)")
         connection.execSQL("CREATE TABLE IF NOT EXISTS `trains` (`route_id` TEXT NOT NULL, `train_number` TEXT NOT NULL, `name` TEXT NOT NULL, `type` INTEGER NOT NULL, PRIMARY KEY(`route_id`))")
@@ -57,7 +57,7 @@ public class TrainDatabase_Impl : TrainDatabase() {
         connection.execSQL("CREATE TRIGGER IF NOT EXISTS room_fts_content_sync_stations_fts_AFTER_UPDATE AFTER UPDATE ON `stations` BEGIN INSERT INTO `stations_fts`(`docid`, `code`, `name`) VALUES (NEW.`rowid`, NEW.`code`, NEW.`name`); END")
         connection.execSQL("CREATE TRIGGER IF NOT EXISTS room_fts_content_sync_stations_fts_AFTER_INSERT AFTER INSERT ON `stations` BEGIN INSERT INTO `stations_fts`(`docid`, `code`, `name`) VALUES (NEW.`rowid`, NEW.`code`, NEW.`name`); END")
         connection.execSQL("CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)")
-        connection.execSQL("INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'f937cddbe097bfac97516149eed279f3')")
+        connection.execSQL("INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '8f222d5a96955c3086ea29cd9204c827')")
       }
 
       public override fun dropAllTables(connection: SQLiteConnection) {
@@ -97,9 +97,9 @@ public class TrainDatabase_Impl : TrainDatabase() {
             TableInfo.CREATED_FROM_ENTITY))
         _columnsStations.put("name", TableInfo.Column("name", "TEXT", true, 0, null,
             TableInfo.CREATED_FROM_ENTITY))
-        _columnsStations.put("lat", TableInfo.Column("lat", "REAL", true, 0, null,
+        _columnsStations.put("lat", TableInfo.Column("lat", "REAL", false, 0, null,
             TableInfo.CREATED_FROM_ENTITY))
-        _columnsStations.put("lon", TableInfo.Column("lon", "REAL", true, 0, null,
+        _columnsStations.put("lon", TableInfo.Column("lon", "REAL", false, 0, null,
             TableInfo.CREATED_FROM_ENTITY))
         val _foreignKeysStations: MutableSet<TableInfo.ForeignKey> = mutableSetOf()
         val _indicesStations: MutableSet<TableInfo.Index> = mutableSetOf()
