@@ -21,6 +21,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.NotificationsActive
+import androidx.compose.material.icons.filled.NotificationsNone
 import androidx.compose.material.icons.filled.SatelliteAlt
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -28,6 +30,9 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -35,6 +40,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -43,9 +49,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.trainkraft.app.data.AlarmStore
 import com.trainkraft.app.data.GtfsTime
 import com.trainkraft.app.data.ScheduleStop
 import com.trainkraft.app.ui.theme.KraftSpacing
+import kotlinx.coroutines.launch
 
 @Composable
 fun TrainDetailScreen(
@@ -68,6 +76,17 @@ fun TrainDetailScreen(
     val liveError by viewModel.liveError.collectAsState()
     val isLiveLoading by viewModel.isLiveLoading.collectAsState()
 
+    val appContext = context.applicationContext
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+    // Destination = last stop of the schedule. Blank until the schedule loads.
+    val destinationCode = remember(schedule) { schedule.lastOrNull()?.code.orEmpty() }
+    val watchingFlow = remember(trainNumber, destinationCode) {
+        AlarmStore.isWatchingFlow(appContext, trainNumber, destinationCode)
+    }
+    val isWatching by watchingFlow.collectAsState(initial = false)
+
+    Box(modifier = Modifier.fillMaxSize()) {
     Column(modifier = Modifier.fillMaxSize()) {
         // Top bar
         Row(
@@ -120,9 +139,23 @@ fun TrainDetailScreen(
                             type = train?.type,
                             stopCount = schedule.size,
                             isLiveLoading = isLiveLoading,
+                            destinationCode = destinationCode,
+                            isWatching = isWatching,
                             onLiveStatus = {
                                 viewModel.refreshLiveStatus()
                                 onLiveStatus()
+                            },
+                            onWatch = {
+                                if (destinationCode.isBlank()) return@TrainHeader
+                                scope.launch {
+                                    if (isWatching) {
+                                        AlarmStore.unwatch(appContext, trainNumber, destinationCode)
+                                        snackbarHostState.showSnackbar("Stopped watching $destinationCode")
+                                    } else {
+                                        AlarmStore.watch(appContext, trainNumber, destinationCode)
+                                        snackbarHostState.showSnackbar("Watching $destinationCode")
+                                    }
+                                }
                             },
                         )
                         HorizontalDivider()
@@ -155,6 +188,13 @@ fun TrainDetailScreen(
                 }
             }
         }
+        }
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(KraftSpacing.spacing16),
+        )
     }
 }
 
@@ -165,7 +205,10 @@ private fun TrainHeader(
     type: String?,
     stopCount: Int,
     isLiveLoading: Boolean = false,
+    destinationCode: String = "",
+    isWatching: Boolean = false,
     onLiveStatus: () -> Unit,
+    onWatch: () -> Unit = {},
 ) {
     Column(
         modifier = Modifier
@@ -197,21 +240,37 @@ private fun TrainHeader(
             }
         }
         Spacer(Modifier.height(KraftSpacing.spacing12))
-        Button(
-            onClick = onLiveStatus,
-            enabled = !isLiveLoading,
-            modifier = Modifier.fillMaxWidth(),
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(KraftSpacing.spacing8),
         ) {
-            if (isLiveLoading) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(18.dp),
-                    strokeWidth = 2.dp,
-                )
-            } else {
-                Icon(Icons.Filled.SatelliteAlt, contentDescription = null)
+            Button(
+                onClick = onLiveStatus,
+                enabled = !isLiveLoading,
+                modifier = Modifier.weight(1f),
+            ) {
+                if (isLiveLoading) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(18.dp),
+                        strokeWidth = 2.dp,
+                    )
+                } else {
+                    Icon(Icons.Filled.SatelliteAlt, contentDescription = null)
+                }
+                Spacer(Modifier.width(KraftSpacing.spacing8))
+                Text(if (isLiveLoading) "Loading…" else "Live Status")
             }
-            Spacer(Modifier.width(KraftSpacing.spacing8))
-            Text(if (isLiveLoading) "Loading…" else "Live Status")
+            OutlinedButton(
+                onClick = onWatch,
+                enabled = destinationCode.isNotBlank(),
+            ) {
+                Icon(
+                    if (isWatching) Icons.Filled.NotificationsActive
+                    else Icons.Filled.NotificationsNone,
+                    contentDescription = null,
+                )
+                Spacer(Modifier.width(KraftSpacing.spacing8))
+                Text(if (isWatching) "Watching" else "Watch")
+            }
         }
     }
 }
