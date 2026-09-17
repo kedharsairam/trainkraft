@@ -1,0 +1,54 @@
+name: Build & Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Make gradlew executable
+        run: chmod +x gradlew
+
+      - name: Build release APK
+        run: ./gradlew assembleRelease --no-daemon
+
+      - name: Rename APK with version tag
+        id: rename
+        run: |
+          TAG="${{ github.ref_name }}"
+          VERSION="${TAG#v}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          mv app/build/outputs/apk/release/app-release.apk \
+             app/build/outputs/apk/release/TrainKraft-${VERSION}.apk
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: TrainKraft ${{ github.ref_name }}
+          body: |
+            ## TrainKraft ${{ github.ref_name }}
+
+            ### Install
+            1. Download `TrainKraft-${{ steps.rename.outputs.version }}.apk`
+            2. Open the file on your Android device
+            3. Allow "Install from unknown sources" if prompted
+
+            ### Notes
+            - Release APK is signed with the debug keystore (installable).
+            - Offline timetable bundled (10.5k trains).
+          files: |
+            app/build/outputs/apk/release/TrainKraft-*.apk
