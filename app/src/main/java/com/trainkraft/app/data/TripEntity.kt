@@ -15,14 +15,6 @@ import androidx.room.PrimaryKey
  */
 @Entity(
     tableName = "trips",
-    foreignKeys = [
-        ForeignKey(
-            entity = TrainEntity::class,
-            parentColumns = ["route_id"],
-            childColumns = ["route_id"],
-            onDelete = ForeignKey.CASCADE
-        )
-    ],
     indices = [
         Index(value = ["route_id"]),
         Index(value = ["service_id"])
@@ -38,7 +30,4 @@ data class TripEntity(
 
     @ColumnInfo(name = "service_id")
     val serviceId: String,
-
-    @ColumnInfo(name = "headsign")
-    val headsign: String? = null
 )

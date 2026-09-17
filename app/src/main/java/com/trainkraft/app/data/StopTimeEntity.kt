@@ -19,20 +19,6 @@ import androidx.room.Index
 @Entity(
     tableName = "stop_times",
     primaryKeys = ["trip_id", "seq"],
-    foreignKeys = [
-        ForeignKey(
-            entity = TripEntity::class,
-            parentColumns = ["trip_id"],
-            childColumns = ["trip_id"],
-            onDelete = ForeignKey.CASCADE
-        ),
-        ForeignKey(
-            entity = StationEntity::class,
-            parentColumns = ["stop_id"],
-            childColumns = ["stop_id"],
-            onDelete = ForeignKey.NO_ACTION
-        )
-    ],
     indices = [
         Index(value = ["trip_id"]),
         Index(value = ["stop_id"]),
@@ -50,11 +36,11 @@ data class StopTimeEntity(
     val stopId: String,
 
     @ColumnInfo(name = "arr_min")
-    val arrMin: Int,
+    val arrMin: Int?,
 
     @ColumnInfo(name = "dep_min")
-    val depMin: Int,
+    val depMin: Int?,
 
     @ColumnInfo(name = "day_offset")
-    val dayOffset: Int
+    val dayOffset: Int = 0
 )

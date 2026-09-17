@@ -162,7 +162,7 @@ fun TrainDetailScreen(
 private fun TrainHeader(
     number: String,
     name: String,
-    type: Int?,
+    type: String?,
     stopCount: Int,
     isLiveLoading: Boolean = false,
     onLiveStatus: () -> Unit,
@@ -357,12 +357,12 @@ private fun ScheduleStopRow(
         // Times
         Column(horizontalAlignment = Alignment.End) {
             Text(
-                text = "Arr ${GtfsTime.format(stop.arrMin)}",
+                text = "Arr ${stop.arrMin?.let { GtfsTime.format(it) } ?: "--:--"}",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Text(
-                text = "Dep ${GtfsTime.format(stop.depMin)}",
+                text = "Dep ${stop.depMin?.let { GtfsTime.format(it) } ?: "--:--"}",
                 style = MaterialTheme.typography.bodySmall,
                 fontWeight = FontWeight.Medium,
             )

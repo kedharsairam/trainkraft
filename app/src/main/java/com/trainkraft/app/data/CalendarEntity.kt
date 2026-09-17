@@ -17,29 +17,29 @@ data class CalendarEntity(
     val serviceId: String,
 
     @ColumnInfo(name = "mon")
-    val mon: Int,
+    val mon: Int? = 0,
 
     @ColumnInfo(name = "tue")
-    val tue: Int,
+    val tue: Int? = 0,
 
     @ColumnInfo(name = "wed")
-    val wed: Int,
+    val wed: Int? = 0,
 
     @ColumnInfo(name = "thu")
-    val thu: Int,
+    val thu: Int? = 0,
 
     @ColumnInfo(name = "fri")
-    val fri: Int,
+    val fri: Int? = 0,
 
     @ColumnInfo(name = "sat")
-    val sat: Int,
+    val sat: Int? = 0,
 
     @ColumnInfo(name = "sun")
-    val sun: Int,
+    val sun: Int? = 0,
 
     @ColumnInfo(name = "start_date")
-    val startDate: Int,
+    val startDate: Int? = 0,
 
     @ColumnInfo(name = "end_date")
-    val endDate: Int
+    val endDate: Int? = 0
 )

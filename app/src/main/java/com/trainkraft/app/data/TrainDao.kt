@@ -36,8 +36,6 @@ data class TrainsBetweenResult(
     val trainNumber: String,
     @ColumnInfo(name = "train_name")
     val trainName: String,
-    @ColumnInfo(name = "headsign")
-    val headsign: String?,
     @ColumnInfo(name = "from_seq")
     val fromSeq: Int,
     @ColumnInfo(name = "to_seq")
@@ -60,8 +58,6 @@ data class StationDeparture(
     val trainNumber: String,
     @ColumnInfo(name = "train_name")
     val trainName: String,
-    @ColumnInfo(name = "headsign")
-    val headsign: String?,
     @ColumnInfo(name = "dep_min")
     val depMin: Int,
     @ColumnInfo(name = "day_offset")
@@ -125,21 +121,6 @@ interface TrainDao {
     )
     suspend fun searchStationsLike(query: String): List<StationEntity>
 
-    /**
-     * FTS prefix search over stations_fts (content-synced to stations).
-     * Caller passes a plain prefix, e.g. "NDL"; '*' is appended here.
-     * Falls back gracefully to empty list on no match (never throws).
-     */
-    @Query(
-        """
-        SELECT s.* FROM stations AS s
-        JOIN stations_fts ON s.rowid = stations_fts.rowid
-        WHERE stations_fts MATCH :query || '*'
-        LIMIT 20
-        """
-    )
-    suspend fun searchStationsFts(query: String): List<StationEntity>
-
     // ---- 2. Train search ----
 
     @Query(
@@ -191,7 +172,6 @@ interface TrainDao {
         SELECT t.trip_id AS trip_id,
                tr.train_number AS train_number,
                tr.name AS train_name,
-               t.headsign AS headsign,
                fromSt.seq AS from_seq,
                toSt.seq AS to_seq,
                fromSt.dep_min AS from_dep,
@@ -224,7 +204,6 @@ interface TrainDao {
         SELECT t.trip_id AS trip_id,
                tr.train_number AS train_number,
                tr.name AS train_name,
-               t.headsign AS headsign,
                st.dep_min AS dep_min,
                st.day_offset AS day_offset,
                st.seq AS seq,
