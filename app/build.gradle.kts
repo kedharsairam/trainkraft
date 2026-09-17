@@ -14,7 +14,7 @@ android {
         applicationId = "com.trainkraft.app"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
+        versionCode = 6
         versionName = "0.1.0"
     }
 
