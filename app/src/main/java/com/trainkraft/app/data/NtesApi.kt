@@ -7,6 +7,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
+import java.io.IOException
 import java.util.concurrent.TimeUnit
 
 /**
@@ -63,6 +64,7 @@ object NtesApi {
 
             client.newCall(request).execute().use { response ->
                 android.util.Log.d(TAG, "HTTP ${response.code}")
+                if (!response.isSuccessful) throw IOException("Server error (${response.code})")
                 val text = response.body?.string().orEmpty()
                 android.util.Log.d(TAG, "Response length: ${text.length}")
                 if (text.isBlank()) throw IllegalStateException("empty response")

@@ -21,9 +21,9 @@ data class ScheduleStop(
     @ColumnInfo(name = "name")
     val name: String,
     @ColumnInfo(name = "arr_min")
-    val arrMin: Int,
+    val arrMin: Int?,
     @ColumnInfo(name = "dep_min")
-    val depMin: Int,
+    val depMin: Int?,
     @ColumnInfo(name = "day_offset")
     val dayOffset: Int
 )
@@ -59,7 +59,7 @@ data class StationDeparture(
     @ColumnInfo(name = "train_name")
     val trainName: String,
     @ColumnInfo(name = "dep_min")
-    val depMin: Int,
+    val depMin: Int?,
     @ColumnInfo(name = "day_offset")
     val dayOffset: Int,
     @ColumnInfo(name = "seq")

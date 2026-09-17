@@ -26,6 +26,13 @@ val TextTertiaryDark = Color(0xFF8E8E93)
 val SeparatorDark = Color(0xFF38383A)
 val FillPrimaryDark = Color(0xFF787880)
 
+// -- Container roles (dark-tuned, match Kraft palette) --
+val PrimaryContainerDark = Color(0xFF00325B)
+val OnPrimaryContainerDark = Color(0xFFD6E8FF)
+val SecondaryContainerDark = SurfaceTertiaryDark
+val OnSecondaryContainerDark = TextSecondaryDark
+val SurfaceLowestDark = Color(0xFF0C0C0E)
+
 // -- Theme-aware color holder (dark-only app) --
 @Immutable
 data class ThemeColors(

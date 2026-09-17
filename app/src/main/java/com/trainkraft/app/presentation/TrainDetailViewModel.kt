@@ -17,6 +17,7 @@ import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.TimeZone
 
 /**
  * Loads the full timetable ([ScheduleStop] list, ordered by seq) for one
@@ -38,6 +39,9 @@ class TrainDetailViewModel(
     private val _isLoading = MutableStateFlow(true)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
+    private val _dbError = MutableStateFlow<String?>(null)
+    val dbError: StateFlow<String?> = _dbError.asStateFlow()
+
     /** Raw NTES live-status JSON (v1: unparsed), null until first success. */
     private val _liveStatusJson = MutableStateFlow<String?>(null)
     val liveStatusJson: StateFlow<String?> = _liveStatusJson.asStateFlow()
@@ -50,18 +54,28 @@ class TrainDetailViewModel(
     val isLiveLoading: StateFlow<Boolean> = _isLiveLoading.asStateFlow()
 
     init {
+        loadSchedule()
+    }
+
+    /** Loads the offline schedule; re-called by Retry after a DB error. */
+    fun loadSchedule() {
         viewModelScope.launch {
             _isLoading.value = true
+            _dbError.value = null
             try {
                 _schedule.value = dao.getTrainSchedule(trainNumber)
                 _train.value = dao.searchTrains(trainNumber)
                     .firstOrNull { it.trainNumber.equals(trainNumber, ignoreCase = true) }
                     ?: dao.searchTrains(trainNumber).firstOrNull()
+            } catch (e: Exception) {
+                _dbError.value = e.message ?: "Database error"
             } finally {
                 _isLoading.value = false
             }
         }
     }
+
+    fun retry() = loadSchedule()
 
     /**
      * Fetches live running status for today (DD-MMM-YYYY). Failures surface
@@ -74,11 +88,17 @@ class TrainDetailViewModel(
             _isLiveLoading.value = true
             _liveError.value = null
             try {
-                val date = SimpleDateFormat("dd-MMM-yyyy", Locale.ENGLISH)
-                    .format(Date())
-                    .uppercase(Locale.ENGLISH)
+                val trimmed = trainNumber.trim()
+                if (!Regex("^[0-9]{4,6}$").matches(trimmed)) {
+                    _liveError.value = "Invalid train number"
+                    return@launch
+                }
+                val dateFormat = SimpleDateFormat("dd-MMM-yyyy", Locale.ENGLISH).apply {
+                    timeZone = TimeZone.getTimeZone("Asia/Kolkata")
+                }
+                val date = dateFormat.format(Date()).uppercase(Locale.ENGLISH)
                 val keys = NtesConfig.getKeys(getApplication())
-                val result = NtesApi.liveStatus(trainNumber, date, keys)
+                val result = NtesApi.liveStatus(trimmed, date, keys)
                 result
                     .onSuccess { _liveStatusJson.value = it }
                     .onFailure { e ->

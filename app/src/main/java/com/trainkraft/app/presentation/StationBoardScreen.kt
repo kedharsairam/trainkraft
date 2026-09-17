@@ -15,7 +15,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.SatelliteAlt
 import androidx.compose.material.icons.filled.Train
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -32,6 +31,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.trainkraft.app.data.GtfsTime
@@ -41,15 +41,14 @@ import com.trainkraft.app.ui.theme.KraftSpacing
 /**
  * Offline station departure board (dark-only Material3).
  *
- * [onLiveBoard] is a placeholder for the future NtesApi station_live call;
- * the offline schedule always stays visible with an "Offline schedule" note.
+ * Shows the offline schedule with an "Offline schedule" note. There is no
+ * NtesApi station_live endpoint, so no Live Board action is offered.
  */
 @Composable
 fun StationBoardScreen(
     stationCode: String,
     onBack: () -> Unit,
     onTrainClick: (String) -> Unit,
-    onLiveBoard: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val factory = remember(stationCode) {
@@ -62,6 +61,7 @@ fun StationBoardScreen(
     val station by viewModel.station.collectAsState()
     val departures by viewModel.departures.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
+    val dbError by viewModel.dbError.collectAsState()
 
     Column(modifier = Modifier.fillMaxSize()) {
         // Header: back + station code (large) + name
@@ -83,14 +83,13 @@ fun StationBoardScreen(
                     text = station?.code ?: stationCode,
                     style = MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.Bold,
+                    fontFamily = FontFamily.Monospace,
                 )
-                if (station != null) {
-                    Text(
-                        text = station!!.name,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
+                Text(
+                    text = station?.name ?: "",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         }
 
@@ -103,10 +102,26 @@ fun StationBoardScreen(
                     CircularProgressIndicator()
                 }
             }
+            dbError != null -> {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = dbError ?: "Database error",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                        Button(onClick = { viewModel.retry() }) {
+                            Text("Retry")
+                        }
+                    }
+                }
+            }
             departures.isEmpty() -> {
                 StationBoardHeader(
                     count = 0,
-                    onLiveBoard = onLiveBoard,
                 )
                 Box(
                     modifier = Modifier.fillMaxSize(),
@@ -124,7 +139,6 @@ fun StationBoardScreen(
                     item(key = "header") {
                         StationBoardHeader(
                             count = departures.size,
-                            onLiveBoard = onLiveBoard,
                         )
                         HorizontalDivider()
                     }
@@ -144,7 +158,6 @@ fun StationBoardScreen(
 @Composable
 private fun StationBoardHeader(
     count: Int,
-    onLiveBoard: () -> Unit,
 ) {
     Column(
         modifier = Modifier
@@ -158,14 +171,6 @@ private fun StationBoardHeader(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-        }
-        Button(
-            onClick = onLiveBoard,
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Icon(Icons.Filled.SatelliteAlt, contentDescription = null)
-            Spacer(Modifier.width(KraftSpacing.spacing8))
-            Text("Live Board")
         }
         Text(
             text = "Offline schedule",
@@ -205,6 +210,7 @@ private fun DepartureRow(
                     text = departure.trainNumber,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
+                    fontFamily = FontFamily.Monospace,
                 )
                 if (departure.dayOffset > 0) {
                     DayBadgeSmall(departure.dayOffset)
@@ -219,9 +225,10 @@ private fun DepartureRow(
             )
         }
         Text(
-            text = GtfsTime.format(departure.depMin, departure.dayOffset),
+            text = departure.depMin?.let { GtfsTime.format(it, departure.dayOffset) } ?: "--:--",
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.SemiBold,
+            fontFamily = FontFamily.Monospace,
         )
     }
 }

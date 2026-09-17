@@ -37,9 +37,18 @@ class StationBoardViewModel(
     private val _isLoading = MutableStateFlow(true)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
+    private val _dbError = MutableStateFlow<String?>(null)
+    val dbError: StateFlow<String?> = _dbError.asStateFlow()
+
     init {
+        loadBoard()
+    }
+
+    /** Loads the station board; re-called by Retry after a DB error. */
+    fun loadBoard() {
         viewModelScope.launch {
             _isLoading.value = true
+            _dbError.value = null
             try {
                 // No dedicated getStationByCode in the DAO; exact-match first
                 // via the LIKE search (same pattern as TrainDetailViewModel).
@@ -49,11 +58,15 @@ class StationBoardViewModel(
                 } ?: matches.firstOrNull()
                 val weekday = LocalDate.now().dayOfWeek.value - 1
                 _departures.value = dao.getStationBoard(stationCode, weekday)
+            } catch (e: Exception) {
+                _dbError.value = e.message ?: "Database error"
             } finally {
                 _isLoading.value = false
             }
         }
     }
+
+    fun retry() = loadBoard()
 
     class Factory(
         private val application: Application,

@@ -39,6 +39,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.trainkraft.app.data.StationEntity
@@ -72,6 +73,7 @@ fun SearchScreen(
     val isSearching by viewModel.isSearching.collectAsState()
     val stationResults by viewModel.stationResults.collectAsState()
     val trainResults by viewModel.trainResults.collectAsState()
+    val dbError by viewModel.dbError.collectAsState()
 
     val focusRequester = remember { FocusRequester() }
     LaunchedEffect(Unit) { focusRequester.requestFocus() }
@@ -125,6 +127,32 @@ fun SearchScreen(
 
         if (isSearching) {
             LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+        }
+
+        if (dbError != null) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = KraftSpacing.spacing16),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = dbError ?: "Database error",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.weight(1f),
+                )
+                Spacer(Modifier.width(KraftSpacing.spacing8))
+                IconButton(onClick = viewModel::retrySearch) {
+                    Icon(Icons.Filled.Search, contentDescription = "Retry")
+                }
+                Text(
+                    text = "Retry",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.clickable(onClick = viewModel::retrySearch),
+                )
+            }
         }
 
         when {
@@ -245,6 +273,8 @@ private fun TrainRow(train: TrainEntity, onClick: () -> Unit) {
                 text = train.name,
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
         }
     }
@@ -278,6 +308,9 @@ private fun StationRow(station: StationEntity, onClick: () -> Unit) {
             text = station.name,
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
         )
     }
 }

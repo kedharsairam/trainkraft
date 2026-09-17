@@ -35,7 +35,6 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -55,6 +54,10 @@ import com.trainkraft.app.data.ScheduleStop
 import com.trainkraft.app.ui.theme.KraftSpacing
 import kotlinx.coroutines.launch
 
+// Divider aligns with station text: 32.dp seq badge + 12.dp gap + 12.dp indent.
+private val TimelineDividerStartPadding =
+    KraftSpacing.spacing32 + KraftSpacing.spacing12 + KraftSpacing.spacing12
+
 @Composable
 fun TrainDetailScreen(
     trainNumber: String,
@@ -72,6 +75,7 @@ fun TrainDetailScreen(
     val schedule by viewModel.schedule.collectAsState()
     val train by viewModel.train.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
+    val dbError by viewModel.dbError.collectAsState()
     val liveStatusJson by viewModel.liveStatusJson.collectAsState()
     val liveError by viewModel.liveError.collectAsState()
     val isLiveLoading by viewModel.isLiveLoading.collectAsState()
@@ -106,6 +110,7 @@ fun TrainDetailScreen(
                 text = "Train ${train?.trainNumber ?: trainNumber}",
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold,
+                fontFamily = FontFamily.Monospace,
             )
         }
 
@@ -116,6 +121,23 @@ fun TrainDetailScreen(
                     contentAlignment = Alignment.Center,
                 ) {
                     CircularProgressIndicator()
+                }
+            }
+            dbError != null -> {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = dbError ?: "Database error",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                        Button(onClick = { viewModel.retry() }) {
+                            Text("Retry")
+                        }
+                    }
                 }
             }
             schedule.isEmpty() -> {
@@ -181,7 +203,7 @@ fun TrainDetailScreen(
                         )
                         if (index != schedule.lastIndex) {
                             HorizontalDivider(
-                                modifier = Modifier.padding(start = 56.dp),
+                                modifier = Modifier.padding(start = TimelineDividerStartPadding),
                             )
                         }
                     }
@@ -307,7 +329,10 @@ private fun LiveStatusSection(
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.error,
             )
-            TextButton(onClick = onRetry) {
+            Button(
+                onClick = onRetry,
+                modifier = Modifier.heightIn(min = 48.dp),
+            ) {
                 Text("Retry")
             }
         }
@@ -400,6 +425,7 @@ private fun ScheduleStopRow(
                     text = stop.code,
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Bold,
+                    fontFamily = FontFamily.Monospace,
                     color = if (isFirst || isLast) endpointColor
                     else MaterialTheme.colorScheme.onSurface,
                 )
@@ -418,12 +444,14 @@ private fun ScheduleStopRow(
             Text(
                 text = "Arr ${stop.arrMin?.let { GtfsTime.format(it) } ?: "--:--"}",
                 style = MaterialTheme.typography.bodySmall,
+                fontFamily = FontFamily.Monospace,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Text(
                 text = "Dep ${stop.depMin?.let { GtfsTime.format(it) } ?: "--:--"}",
                 style = MaterialTheme.typography.bodySmall,
                 fontWeight = FontWeight.Medium,
+                fontFamily = FontFamily.Monospace,
             )
         }
     }
