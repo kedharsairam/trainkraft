@@ -216,6 +216,8 @@ class TrainDetailViewModel(
     private fun mapLiveError(e: Throwable): String {
         val msg = e.message?.lowercase().orEmpty()
         return when {
+            "keys not loaded" in msg ->
+                "Keys not loaded. Connect to the internet once to initialize, then try again."
             e is java.io.IOException || "unable to resolve host" in msg || "timeout" in msg || "network" in msg ->
                 "Network unavailable. Check your connection and try again."
             else -> "Live status unavailable. Please try again."
