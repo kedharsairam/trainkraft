@@ -6,23 +6,12 @@
         </trust-anchors>
     </base-config>
 
-    <!-- NTES endpoint -->
+    <!-- Block cleartext for Indian Rail endpoints; cert pinning added when pins are sourced -->
     <domain-config cleartextTrafficPermitted="false">
         <domain includeSubdomains="true">enquiry.indianrail.gov.in</domain>
-        <pin-set expiration="2027-01-01">
-            <!-- Primary pin (SHA-256 of SubjectPublicKeyInfo) -->
-            <pin digest="SHA-256"> placeholder-pin-1= </pin>
-            <!-- Backup pin -->
-            <pin digest="SHA-256"> placeholder-pin-2= </pin>
-        </pin-set>
     </domain-config>
 
-    <!-- PNR endpoint -->
     <domain-config cleartextTrafficPermitted="false">
         <domain includeSubdomains="true">www.indianrail.gov.in</domain>
-        <pin-set expiration="2027-01-01">
-            <pin digest="SHA-256"> placeholder-pin-3= </pin>
-            <pin digest="SHA-256"> placeholder-pin-4= </pin>
-        </pin-set>
     </domain-config>
 </network-security-config>
