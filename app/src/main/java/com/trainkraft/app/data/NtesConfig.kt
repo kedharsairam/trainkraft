@@ -7,7 +7,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONObject
 import java.io.File
-import java.util.concurrent.TimeUnit
+import kotlin.time.Duration.Companion.seconds
 
 /**
  * Remote-configurable NTES crypto keys.
@@ -58,9 +58,9 @@ object NtesConfig {
     private var memoryCacheAt: Long = 0L
 
     private val client = OkHttpClient.Builder()
-        .connectTimeout(10, TimeUnit.SECONDS)
-        .readTimeout(10, TimeUnit.SECONDS)
-        .callTimeout(15, TimeUnit.SECONDS)
+        .connectTimeout(10.seconds)
+        .readTimeout(10.seconds)
+        .callTimeout(15.seconds)
         .build()
 
     /** Optional: call from Application.onCreate so [getKeys] can file-cache. */

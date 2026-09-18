@@ -67,7 +67,7 @@ uv run --python 3.11 python tools/gtfs_to_sqlite.py
 ./gradlew assembleDebug
 ```
 
-Requires JDK 21+, Android SDK 36.
+Requires JDK 21+, Android SDK 37.
 
 ---
 
