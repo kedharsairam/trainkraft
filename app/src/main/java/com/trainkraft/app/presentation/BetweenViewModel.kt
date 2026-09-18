@@ -1,12 +1,14 @@
 package com.trainkraft.app.presentation
 
 import android.app.Application
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.trainkraft.app.data.BetweenResult
 import com.trainkraft.app.data.StationEntity
+import com.trainkraft.app.BuildConfig
 import com.trainkraft.app.data.TrainDatabase
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -120,8 +122,8 @@ class BetweenViewModel(
                     _error.value = "No trains found between ${from.code} and ${to.code} today."
                 }
             } catch (e: Exception) {
-                if (com.trainkraft.app.BuildConfig.DEBUG) {
-                    android.util.Log.e("BetweenVM", "search failed", e)
+                if (BuildConfig.DEBUG) {
+                    Log.e("BetweenVM", "search failed", e)
                 }
                 _error.value = "Search failed. Please try again."
             } finally {

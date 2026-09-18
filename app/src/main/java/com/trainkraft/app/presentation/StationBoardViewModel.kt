@@ -1,12 +1,14 @@
 package com.trainkraft.app.presentation
 
 import android.app.Application
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.trainkraft.app.data.StationDeparture
 import com.trainkraft.app.data.StationEntity
+import com.trainkraft.app.BuildConfig
 import com.trainkraft.app.data.TrainDatabase
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -59,8 +61,8 @@ class StationBoardViewModel(
                 val weekday = LocalDate.now().dayOfWeek.value - 1
                 _departures.value = dao.getStationBoard(stationCode, weekday)
             } catch (e: Exception) {
-                if (com.trainkraft.app.BuildConfig.DEBUG) {
-                    android.util.Log.e("StationBoardVM", "loadBoard failed", e)
+                if (BuildConfig.DEBUG) {
+                    Log.e("StationBoardVM", "loadBoard failed", e)
                 }
                 _dbError.value = mapBoardError(e)
             } finally {

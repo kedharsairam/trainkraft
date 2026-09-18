@@ -14,5 +14,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "Kalc"
+rootProject.name = "TrainKraft"
 include(":app")

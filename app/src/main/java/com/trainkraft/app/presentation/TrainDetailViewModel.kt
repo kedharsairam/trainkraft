@@ -2,6 +2,7 @@ package com.trainkraft.app.presentation
 
 import android.app.Application
 import android.os.Build
+import android.util.Log
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModel
@@ -11,6 +12,8 @@ import com.trainkraft.app.LiveStatusNotificationWorker
 import com.trainkraft.app.data.NtesApi
 import com.trainkraft.app.data.NtesConfig
 import com.trainkraft.app.data.ScheduleStop
+import com.trainkraft.app.BuildConfig
+import com.trainkraft.app.data.GtfsTime
 import com.trainkraft.app.data.TrainDatabase
 import com.trainkraft.app.data.TrainEntity
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -99,10 +102,9 @@ class TrainDetailViewModel(
                 _schedule.value = dao.getTrainSchedule(trainNumber)
                 _train.value = dao.searchTrains(trainNumber)
                     .firstOrNull { it.trainNumber.equals(trainNumber, ignoreCase = true) }
-                    ?: dao.searchTrains(trainNumber).firstOrNull()
             } catch (e: Exception) {
-                if (com.trainkraft.app.BuildConfig.DEBUG) {
-                    android.util.Log.e("TrainDetailVM", "loadSchedule failed", e)
+                if (BuildConfig.DEBUG) {
+                    Log.e("TrainDetailVM", "loadSchedule failed", e)
                 }
                 _dbError.value = "Timetable unavailable. Please try again."
             } finally {
@@ -141,14 +143,14 @@ class TrainDetailViewModel(
                 apiResult
                     .onSuccess { _liveStatusJson.value = it }
                     .onFailure { e ->
-                        if (com.trainkraft.app.BuildConfig.DEBUG) {
-                            android.util.Log.e("TrainDetailVM", "liveStatus failed", e)
+                        if (BuildConfig.DEBUG) {
+                            Log.e("TrainDetailVM", "liveStatus failed", e)
                         }
                         _liveError.value = mapLiveError(e)
                     }
             } catch (e: Exception) {
-                if (com.trainkraft.app.BuildConfig.DEBUG) {
-                    android.util.Log.e("TrainDetailVM", "liveStatus exception", e)
+                if (BuildConfig.DEBUG) {
+                    Log.e("TrainDetailVM", "liveStatus exception", e)
                 }
                 _liveError.value = mapLiveError(e)
             } finally {
@@ -167,8 +169,8 @@ class TrainDetailViewModel(
                 result
                     .onSuccess { _avgDelayJson.value = it }
                     .onFailure { e ->
-                        if (com.trainkraft.app.BuildConfig.DEBUG) {
-                            android.util.Log.e("TrainDetailVM", "avgDelay failed", e)
+                        if (BuildConfig.DEBUG) {
+                            Log.e("TrainDetailVM", "avgDelay failed", e)
                         }
                     }
             } finally {
@@ -187,8 +189,8 @@ class TrainDetailViewModel(
             if (stops.isNotEmpty()) {
                 val first = stops.first()
                 val last = stops.last()
-                val depTime = first.depMin?.let { com.trainkraft.app.data.GtfsTime.format(it) } ?: "??:??"
-                val arrTime = last.arrMin?.let { com.trainkraft.app.data.GtfsTime.format(it) } ?: "??:??"
+                val depTime = first.depMin?.let { GtfsTime.format(it) } ?: "??:??"
+                val arrTime = last.arrMin?.let { GtfsTime.format(it) } ?: "??:??"
                 appendLine("${first.code} $depTime → ${last.code} $arrTime")
                 appendLine("${stops.size} stops")
             }

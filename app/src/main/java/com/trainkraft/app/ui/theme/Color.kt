@@ -1,6 +1,5 @@
 package com.trainkraft.app.ui.theme
 
-import androidx.compose.runtime.Immutable
 import androidx.compose.ui.graphics.Color
 
 // -- Accents (dark-tuned) --
@@ -32,41 +31,3 @@ val OnPrimaryContainerDark = Color(0xFFD6E8FF)
 val SecondaryContainerDark = SurfaceTertiaryDark
 val OnSecondaryContainerDark = TextSecondaryDark
 val SurfaceLowestDark = Color(0xFF0C0C0E)
-
-// -- Theme-aware color holder (dark-only app) --
-@Immutable
-data class ThemeColors(
-    val background: Color,
-    val surface: Color,
-    val surfaceSecondary: Color,
-    val surfaceTertiary: Color,
-    val textPrimary: Color,
-    val textSecondary: Color,
-    val textTertiary: Color,
-    val separator: Color,
-    val accentBlue: Color,
-    val accentGreen: Color,
-    val accentRed: Color,
-    val accentOrange: Color,
-    val accentYellow: Color,
-    val accentPurple: Color,
-)
-
-object KraftThemeColors {
-    val dark = ThemeColors(
-        background = BackgroundDark,
-        surface = SurfaceDark,
-        surfaceSecondary = SurfaceSecondaryDark,
-        surfaceTertiary = SurfaceTertiaryDark,
-        textPrimary = TextPrimaryDark,
-        textSecondary = TextSecondaryDark,
-        textTertiary = TextTertiaryDark,
-        separator = SeparatorDark,
-        accentBlue = AccentBlue,
-        accentGreen = AccentGreen,
-        accentRed = AccentRed,
-        accentOrange = AccentOrange,
-        accentYellow = AccentYellow,
-        accentPurple = AccentPurple,
-    )
-}

@@ -146,11 +146,16 @@ object PnrApi {
      */
     suspend fun queryPnr(pnr: String, captchaAnswer: String): Result<PnrResult> = withContext(Dispatchers.IO) {
         try {
-            val url = "https://www.indianrail.gov.in/enquiry/CommonCaptcha" +
-                    "?inputCaptcha=$captchaAnswer" +
-                    "&inputPnrNo=$pnr" +
-                    "&inputPage=PNR" +
-                    "&language=en"
+            val url = okhttp3.HttpUrl.Builder()
+                .scheme("https")
+                .host("www.indianrail.gov.in")
+                .addPathSegment("enquiry")
+                .addPathSegment("CommonCaptcha")
+                .addQueryParameter("inputCaptcha", captchaAnswer)
+                .addQueryParameter("inputPnrNo", pnr)
+                .addQueryParameter("inputPage", "PNR")
+                .addQueryParameter("language", "en")
+                .build()
 
             val req = Request.Builder()
                 .url(url)
