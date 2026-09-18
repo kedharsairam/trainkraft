@@ -49,6 +49,9 @@ class BetweenViewModel(
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error.asStateFlow()
 
+    private val _uiState = MutableStateFlow<BetweenUiState>(BetweenUiState.Idle)
+    val uiState: StateFlow<BetweenUiState> = _uiState.asStateFlow()
+
     private var fromSearchJob: Job? = null
     private var toSearchJob: Job? = null
 
@@ -114,18 +117,25 @@ class BetweenViewModel(
         viewModelScope.launch {
             _isLoading.value = true
             _error.value = null
+            _uiState.value = BetweenUiState.Loading
             try {
                 val weekday = LocalDate.now().dayOfWeek.value - 1
                 val r = dao.getTrainsBetween(from.code, to.code, weekday)
                 _results.value = r
                 if (r.isEmpty()) {
-                    _error.value = "No trains found between ${from.code} and ${to.code} today."
+                    val msg = "No trains found between ${from.code} and ${to.code} today."
+                    _error.value = msg
+                    _uiState.value = BetweenUiState.Error(msg)
+                } else {
+                    _uiState.value = BetweenUiState.Results(r)
                 }
             } catch (e: Exception) {
                 if (BuildConfig.DEBUG) {
                     Log.e("BetweenVM", "search failed", e)
                 }
-                _error.value = "Search failed. Please try again."
+                val msg = "Search failed. Please try again."
+                _error.value = msg
+                _uiState.value = BetweenUiState.Error(msg)
             } finally {
                 _isLoading.value = false
             }

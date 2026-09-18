@@ -44,6 +44,9 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
     private val _dbError = MutableStateFlow<String?>(null)
     val dbError: StateFlow<String?> = _dbError.asStateFlow()
 
+    private val _uiState = MutableStateFlow<SearchUiState>(SearchUiState.Idle)
+    val uiState: StateFlow<SearchUiState> = _uiState.asStateFlow()
+
     @OptIn(FlowPreview::class)
     val hasResults: StateFlow<Boolean> = combine(_stationResults, _trainResults) { s, t ->
         s.isNotEmpty() || t.isNotEmpty()
@@ -68,17 +71,24 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
             _trainResults.value = emptyList()
             _dbError.value = null
             _isSearching.value = false
+            _uiState.value = SearchUiState.Idle
         } else {
             _isSearching.value = true
+            _uiState.value = SearchUiState.Loading
             try {
-                _stationResults.value = dao.searchStations(trimmed)
-                _trainResults.value = dao.searchTrains(trimmed)
+                val stations = dao.searchStations(trimmed)
+                val trains = dao.searchTrains(trimmed)
+                _stationResults.value = stations
+                _trainResults.value = trains
                 _dbError.value = null
+                _uiState.value = SearchUiState.Results(stations, trains)
             } catch (e: Exception) {
                 if (BuildConfig.DEBUG) {
                     Log.e("SearchViewModel", "search failed", e)
                 }
-                _dbError.value = mapDatabaseError(e)
+                val msg = mapDatabaseError(e)
+                _dbError.value = msg
+                _uiState.value = SearchUiState.Error(msg)
             } finally {
                 _isSearching.value = false
             }

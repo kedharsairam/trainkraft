@@ -53,7 +53,7 @@ abstract class TrainDatabase : RoomDatabase() {
                     DB_NAME
                 )
                     .createFromAsset(ASSET_NAME)
-                    .fallbackToDestructiveMigration()
+                    .fallbackToDestructiveMigration(dropAllTables = true)
                     .build()
                 INSTANCE = instance
                 instance

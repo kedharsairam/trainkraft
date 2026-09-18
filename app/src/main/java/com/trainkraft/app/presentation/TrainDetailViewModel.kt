@@ -71,6 +71,9 @@ class TrainDetailViewModel(
     private val _isTracking = MutableStateFlow(false)
     val isTracking: StateFlow<Boolean> = _isTracking.asStateFlow()
 
+    private val _uiState = MutableStateFlow<TrainDetailUiState>(TrainDetailUiState.Loading)
+    val uiState: StateFlow<TrainDetailUiState> = _uiState.asStateFlow()
+
     fun hasNotificationPermission(): Boolean {
         val ctx = getApplication<Application>()
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return true
@@ -98,15 +101,21 @@ class TrainDetailViewModel(
         viewModelScope.launch {
             _isLoading.value = true
             _dbError.value = null
+            _uiState.value = TrainDetailUiState.Loading
             try {
-                _schedule.value = dao.getTrainSchedule(trainNumber)
-                _train.value = dao.searchTrains(trainNumber)
+                val stops = dao.getTrainSchedule(trainNumber)
+                val train = dao.searchTrains(trainNumber)
                     .firstOrNull { it.trainNumber.equals(trainNumber, ignoreCase = true) }
+                _schedule.value = stops
+                _train.value = train
+                _uiState.value = TrainDetailUiState.Loaded(stops, train)
             } catch (e: Exception) {
                 if (BuildConfig.DEBUG) {
                     Log.e("TrainDetailVM", "loadSchedule failed", e)
                 }
-                _dbError.value = "Timetable unavailable. Please try again."
+                val msg = "Timetable unavailable. Please try again."
+                _dbError.value = msg
+                _uiState.value = TrainDetailUiState.Error(msg)
             } finally {
                 _isLoading.value = false
             }
