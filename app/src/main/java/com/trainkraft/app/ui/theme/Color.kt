@@ -17,9 +17,9 @@ val SurfaceDark = Color(0xFF1C1C1E)
 val SurfaceSecondaryDark = Color(0xFF2C2C2E)
 val SurfaceTertiaryDark = Color(0xFF3A3A3C)
 
-// -- Text --
+// -- Text (hierarchy: primary 100% -> secondary 60% -> tertiary 38%) --
 val TextPrimaryDark = Color(0xFFFFFFFF)
-val TextSecondaryDark = Color(0xFFEBEBF5)
+val TextSecondaryDark = Color(0x99EBEBF5)
 val TextTertiaryDark = Color(0xFF8E8E93)
 
 // -- Separators & Fills --

@@ -11,6 +11,7 @@ import com.trainkraft.app.ui.theme.TrainKraftTheme
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
+        setTheme(R.style.Theme_TrainKraft)
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {

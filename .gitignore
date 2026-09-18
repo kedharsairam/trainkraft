@@ -2,4 +2,15 @@
 # Build outputs
 app/build/
 .build/
+.gradle/
+
+# Secrets – NTES keys must not be committed with real values.
+ntes-keys.json
+ntes-keys-cache.json
+
+# Debug artifacts
+*.png
+ui*.xml
+System.Drawing.Drawing2D.GraphicsPath
+
 

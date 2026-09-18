@@ -6,10 +6,13 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -18,27 +21,36 @@ import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Train
+import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.Button
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -62,10 +74,12 @@ fun trainTypeLabel(type: String?): String {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SearchScreen(
     onTrainClick: (String) -> Unit,
     onStationClick: (String) -> Unit,
+    onBetweenClick: () -> Unit = {},
     onSettingsClick: () -> Unit = {},
     viewModel: SearchViewModel = viewModel(),
 ) {
@@ -74,50 +88,64 @@ fun SearchScreen(
     val stationResults by viewModel.stationResults.collectAsState()
     val trainResults by viewModel.trainResults.collectAsState()
     val dbError by viewModel.dbError.collectAsState()
+    val haptics = LocalHapticFeedback.current
+    val focusManager = LocalFocusManager.current
 
-    val focusRequester = remember { FocusRequester() }
-    LaunchedEffect(Unit) { focusRequester.requestFocus() }
-
-    Column(modifier = Modifier.fillMaxSize()) {
-        // App bar
-        Row(
+    Scaffold(
+        contentWindowInsets = WindowInsets.safeDrawing,
+    ) { paddingValues ->
+        Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(
-                    start = KraftSpacing.spacing16,
-                    end = KraftSpacing.spacing8,
-                    top = KraftSpacing.spacing16,
-                ),
-            verticalAlignment = Alignment.CenterVertically,
+                .fillMaxSize()
+                .padding(paddingValues)
+                .padding(horizontal = KraftSpacing.spacing16),
         ) {
-            Text(
-                text = "TrainKraft",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.weight(1f),
-            )
-            IconButton(onClick = onSettingsClick) {
-                Icon(Icons.Filled.Settings, contentDescription = "Settings")
+            Spacer(modifier = Modifier.height(KraftSpacing.spacing16))
+            // App bar — title uses display scale, settings on right
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = "TrainKraft",
+                    style = MaterialTheme.typography.headlineLarge,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.weight(1f),
+                )
+                IconButton(onClick = {
+                    haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    onBetweenClick()
+                }) {
+                    Icon(Icons.Filled.SwapHoriz, contentDescription = "Between Stations")
+                }
+                IconButton(onClick = {
+                    haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    onSettingsClick()
+                }) {
+                    Icon(Icons.Filled.Settings, contentDescription = "Settings")
+                }
             }
-        }
-        // Search bar
+            Spacer(modifier = Modifier.height(KraftSpacing.spacing16))
+        // Search bar — no auto-focus, proper IME action, dismiss on search/scroll
         TextField(
             value = query,
             onValueChange = viewModel::onQueryChange,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(KraftSpacing.spacing16)
-                .focusRequester(focusRequester),
-            placeholder = { Text("Search trains or stations") },
-            leadingIcon = { Icon(Icons.Filled.Search, contentDescription = "Search") },
+            modifier = Modifier.fillMaxWidth(),
+            placeholder = { Text("Try 12951, Rajdhani, or NDLS") },
+            leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
             trailingIcon = {
                 if (query.isNotEmpty()) {
-                    IconButton(onClick = viewModel::clearQuery) {
-                        Icon(Icons.Filled.Clear, contentDescription = "Clear")
+                    IconButton(onClick = {
+                        haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        viewModel.clearQuery()
+                    }) {
+                        Icon(Icons.Filled.Clear, contentDescription = "Clear search")
                     }
                 }
             },
             singleLine = true,
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+            keyboardActions = KeyboardActions(onSearch = { focusManager.clearFocus() }),
             shape = MaterialTheme.shapes.large,
             colors = TextFieldDefaults.colors(
                 focusedIndicatorColor = Color.Transparent,
@@ -157,27 +185,32 @@ fun SearchScreen(
 
         when {
             query.isBlank() -> {
-                // Empty state
                 Box(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.padding(horizontal = KraftSpacing.spacing24),
+                    ) {
                         Icon(
                             Icons.Filled.Search,
                             contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.height(48.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                        )
+                        Spacer(Modifier.height(KraftSpacing.spacing12))
+                        Text(
+                            text = "Find a train or station",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold,
                         )
                         Spacer(Modifier.height(KraftSpacing.spacing8))
                         Text(
-                            text = "Search by train number, train name,",
+                            text = "Try a number like 12951, a name like Rajdhani, or a code like NDLS.",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        Text(
-                            text = "station code or station name",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                         )
                     }
                 }
@@ -187,15 +220,44 @@ fun SearchScreen(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text(
-                        text = "No results for \"$query\"",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = "No results",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        Spacer(Modifier.height(KraftSpacing.spacing8))
+                        Text(
+                            text = "No results for \"$query\". Check spelling or try a number.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                            modifier = Modifier.padding(horizontal = KraftSpacing.spacing24),
+                        )
+                        Spacer(Modifier.height(KraftSpacing.spacing16))
+                        androidx.compose.material3.Button(onClick = {
+                            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            viewModel.clearQuery()
+                        }) {
+                            Text("Clear search")
+                        }
+                    }
                 }
             }
             else -> {
-                LazyColumn(modifier = Modifier.fillMaxSize()) {
+                val nestedScrollConnection = remember {
+                    object : androidx.compose.ui.input.nestedscroll.NestedScrollConnection {
+                        override fun onPostScroll(
+                            consumed: androidx.compose.ui.geometry.Offset,
+                            available: androidx.compose.ui.geometry.Offset,
+                            source: androidx.compose.ui.input.nestedscroll.NestedScrollSource,
+                        ): androidx.compose.ui.geometry.Offset {
+                            if (consumed.y != 0f) focusManager.clearFocus()
+                            return available
+                        }
+                    }
+                }
+                LazyColumn(modifier = Modifier.fillMaxSize().nestedScroll(nestedScrollConnection)) {
                     if (trainResults.isNotEmpty()) {
                         item(key = "trains-header") {
                             SectionHeader("Trains (${trainResults.size})")
@@ -224,14 +286,15 @@ fun SearchScreen(
             }
         }
     }
+    }
 }
 
 @Composable
 private fun SectionHeader(text: String) {
     Text(
-        text = text,
-        style = MaterialTheme.typography.labelLarge,
-        color = MaterialTheme.colorScheme.primary,
+        text = text.uppercase(),
+        style = MaterialTheme.typography.labelMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
         modifier = Modifier.padding(
             horizontal = KraftSpacing.spacing16,
             vertical = KraftSpacing.spacing8,
@@ -241,14 +304,25 @@ private fun SectionHeader(text: String) {
 
 @Composable
 private fun TrainRow(train: TrainEntity, onClick: () -> Unit) {
+    val haptics = LocalHapticFeedback.current
+    val focusManager = LocalFocusManager.current
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            .clickable(
+                role = Role.Button,
+                onClickLabel = "Open train details",
+                onClick = {
+                    haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    focusManager.clearFocus()
+                    onClick()
+                },
+            )
             .padding(
                 horizontal = KraftSpacing.spacing16,
                 vertical = KraftSpacing.spacing12,
-            ),
+            )
+            .heightIn(min = 44.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(
@@ -282,14 +356,25 @@ private fun TrainRow(train: TrainEntity, onClick: () -> Unit) {
 
 @Composable
 private fun StationRow(station: StationEntity, onClick: () -> Unit) {
+    val haptics = LocalHapticFeedback.current
+    val focusManager = LocalFocusManager.current
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            .clickable(
+                role = Role.Button,
+                onClickLabel = "Open station board",
+                onClick = {
+                    haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    focusManager.clearFocus()
+                    onClick()
+                },
+            )
             .padding(
                 horizontal = KraftSpacing.spacing16,
                 vertical = KraftSpacing.spacing12,
-            ),
+            )
+            .heightIn(min = 44.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(

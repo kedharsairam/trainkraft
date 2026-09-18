@@ -38,6 +38,12 @@ object NtesApi {
 
     private val ALERT_KEYS = arrayOf("AlertMsg", "alertMsg", "AlertMsgHindi", "alertMsgHindi")
 
+    private inline fun debugLog(message: String) {
+        if (com.trainkraft.app.BuildConfig.DEBUG) {
+            android.util.Log.d(TAG, message)
+        }
+    }
+
     /** Extracts a server-side error message, if the decoded JSON carries one. */
     private fun extractError(decoded: String): String? {
         val trimmed = decoded.trimStart()
@@ -52,9 +58,9 @@ object NtesApi {
 
     private suspend fun request(payload: String, keys: NtesKeys = NtesKeys()): Result<String> = withContext(Dispatchers.IO) {
         runCatching {
-            android.util.Log.d(TAG, "Request payload: $payload")
+            debugLog("Request payload: $payload")
             val bodyJson = JSONObject().put("jsonIn", NtesCrypto.encrypt(payload, keys)).toString()
-            android.util.Log.d(TAG, "POST $BASE_URL")
+            debugLog("POST $BASE_URL")
             val request = Request.Builder()
                 .url(BASE_URL)
                 .header("Content-Type", "application/json")
@@ -63,10 +69,10 @@ object NtesApi {
                 .build()
 
             client.newCall(request).execute().use { response ->
-                android.util.Log.d(TAG, "HTTP ${response.code}")
+                debugLog("HTTP ${response.code}")
                 if (!response.isSuccessful) throw IOException("Server error (${response.code})")
                 val text = response.body?.string().orEmpty()
-                android.util.Log.d(TAG, "Response length: ${text.length}")
+                debugLog("Response length: ${text.length}")
                 if (text.isBlank()) throw IllegalStateException("empty response")
                 val data = JSONObject(text)
 
@@ -102,15 +108,4 @@ object NtesApi {
             keys,
         )
 
-    /**
-     * Train search / autocomplete for a number-or-name [query].
-     *
-     * @param keys crypto keys (remote-configurable via [NtesConfig]);
-     * defaults to the hardcoded constants.
-     */
-    suspend fun searchTrains(query: String, keys: NtesKeys = NtesKeys()): Result<String> =
-        request(
-            "service=TrainRunningMob&subService=FindTrainJson&trainNo=$query",
-            keys,
-        )
 }

@@ -1,0 +1,25 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Train front silhouette, centered in 108dp safe zone (66dp centered = 21dp padding) -->
+    <path
+        android:fillColor="#0A84FF"
+        android:pathData="M54,28 L54,28 A22,22 0,0 1,76,50 L76,72 A6,6 0,0 1,70,78 L38,78 A6,6 0,0 1,32,72 L32,50 A22,22 0,0 1,54,28 Z" />
+    <!-- Windshield -->
+    <path
+        android:fillColor="#1C1C1E"
+        android:pathData="M42,36 L66,36 L64,50 L44,50 Z" />
+    <!-- Headlights -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:fillAlpha="0.92"
+        android:pathData="M38,60 A4,4 0,1 0,46,60 A4,4 0,1 0,38,60 Z
+                          M62,60 A4,4 0,1 0,70,60 A4,4 0,1 0,62,60 Z" />
+    <!-- Bottom rail hint -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:fillAlpha="0.18"
+        android:pathData="M30,78 L78,78 L76,82 L32,82 Z" />
+</vector>
