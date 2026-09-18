@@ -13,11 +13,23 @@ Private train tracking for India. No ads. No analytics. No trackers.
 
 **Offline timetable** — 10,500+ trains, 8,500+ stations bundled. Search trains, stations, schedules, routes. Works without internet.
 
-**Live status** — Real-time train running status via NTES API. Delays, ETAs, last location. Graceful fallback to cached + scheduled times when offline.
+**Live status** — Real-time train running status via NTES API. Delays, ETAs, last location, platform info. Graceful fallback to cached + scheduled times when offline.
+
+**PNR status** — Check PNR status directly in the app. Solves captcha, shows per-passenger status, chart status, train info.
+
+**Between stations** — Find all trains running between two stations. Swap button, autocomplete search, duration display.
 
 **Station board** — Live departures from any station with platform info.
 
-**Destination watch** — Save trips, get ready for geofence alarms (coming soon).
+**Coach position** — See where your coach will be on the platform before the train arrives.
+
+**Delay tracker** — Color-coded delay severity (green ≤5min, orange ≤15min, red >15min). Average delay data from NTES.
+
+**Live notifications** — Opt-in per-train notifications via WorkManager. Polls NTES every 10 minutes, posts status updates.
+
+**Share** — Share train info (name, number, route, stops) as clean text.
+
+**24h format** — Toggle between 12h and 24h time display in Settings.
 
 **Private** — No accounts. No tracking. Timetable on-device. API queries contain only train numbers.
 
@@ -29,9 +41,11 @@ Private train tracking for India. No ads. No analytics. No trackers.
 |-------|-----------|
 | Language | Kotlin |
 | UI | Jetpack Compose + Material 3 |
-| Database | Room (GTFS timetable, 13MB) |
+| Database | Room (GTFS timetable, 19.7MB) |
 | Network | OkHttp + NTES AppServAnd API |
 | Crypto | AES-128-CBC (NTES payload) |
+| Background | WorkManager (live notifications) |
+| Testing | JUnit4 + Robolectric (27 tests) |
 
 ---
 
@@ -39,6 +53,7 @@ Private train tracking for India. No ads. No analytics. No trackers.
 
 - Timetable: OpenStreetMap GTFS (Aug 2026), 10.5k trains
 - Live: Indian Railways NTES (unofficial API port)
+- PNR: indianrail.gov.in (official, captcha-based)
 - No official IRCTC partnership. Not affiliated with Indian Railways.
 
 ---
@@ -58,7 +73,7 @@ Requires JDK 21+, Android SDK 36.
 
 ## Privacy
 
-No permissions beyond internet + location (for future alarms). No analytics. See source.
+No permissions beyond internet + notifications. No analytics. No tracking. See source.
 
 ## License
 
