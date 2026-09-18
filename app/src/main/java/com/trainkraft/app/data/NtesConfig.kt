@@ -38,7 +38,7 @@ data class NtesKeys(
 object NtesConfig {
 
     const val REMOTE_URL =
-        "https://raw.githubusercontent.com/kedharsairam/trainkraft/main/ntes-keys.json"
+        "https://raw.githubusercontent.com/kedharsairam/trainkraft/master/ntes-keys.json"
 
     private const val CACHE_FILE_NAME = "ntes-keys-cache.json"
 

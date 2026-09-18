@@ -59,6 +59,11 @@ object NtesApi {
     }
 
     private suspend fun request(payload: String, keys: NtesKeys = NtesKeys()): Result<String> = withContext(Dispatchers.IO) {
+        if (keys.key.isBlank() || keys.iv.isBlank()) {
+            return@withContext Result.failure(
+                IllegalStateException("NTES keys not loaded — check network connection")
+            )
+        }
         runCatching {
             debugLog("Request payload: $payload")
             val bodyJson = JSONObject().put("jsonIn", NtesCrypto.encrypt(payload, keys)).toString()
