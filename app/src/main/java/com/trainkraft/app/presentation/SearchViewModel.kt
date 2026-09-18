@@ -1,9 +1,11 @@
 package com.trainkraft.app.presentation
 
 import android.app.Application
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.trainkraft.app.data.StationEntity
+import com.trainkraft.app.BuildConfig
 import com.trainkraft.app.data.TrainDatabase
 import com.trainkraft.app.data.TrainEntity
 import kotlinx.coroutines.FlowPreview
@@ -73,8 +75,8 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
                 _trainResults.value = dao.searchTrains(trimmed)
                 _dbError.value = null
             } catch (e: Exception) {
-                if (com.trainkraft.app.BuildConfig.DEBUG) {
-                    android.util.Log.e("SearchViewModel", "search failed", e)
+                if (BuildConfig.DEBUG) {
+                    Log.e("SearchViewModel", "search failed", e)
                 }
                 _dbError.value = mapDatabaseError(e)
             } finally {
@@ -99,13 +101,7 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     private fun mapDatabaseError(e: Exception): String {
-        // Never leak SQLite internals to UI; use a single user-friendly string.
-        val msg = e.message?.lowercase().orEmpty()
-        return when {
-            "sqlite" in msg || "database" in msg || "no such table" in msg || "syntax error" in msg ->
-                "Timetable unavailable. Please try again."
-            msg.isBlank() -> "Timetable unavailable. Please try again."
-            else -> "Timetable unavailable. Please try again."
-        }
+        // Never leak SQLite internals to UI.
+        return "Timetable unavailable. Please try again."
     }
 }

@@ -69,15 +69,16 @@ class PnrViewModel(
     }
 
     fun submitPnr(pnr: String, captchaAnswer: String) {
-        if (pnr.length !in 10..11) {
-            _error.value = "PNR must be 10 digits"
+        val trimmed = pnr.trim()
+        if (trimmed.length != 10 || !trimmed.all { it.isDigit() }) {
+            _error.value = "PNR must be exactly 10 digits"
             return
         }
-        currentPnr = pnr
+        currentPnr = trimmed
         viewModelScope.launch {
             _isLoading.value = true
             _error.value = null
-            val result = PnrApi.queryPnr(pnr, captchaAnswer)
+            val result = PnrApi.queryPnr(trimmed, captchaAnswer)
             result
                 .onSuccess { pnrData ->
                     _pnrResult.value = pnrData

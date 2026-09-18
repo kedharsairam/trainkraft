@@ -69,9 +69,3 @@ fun TrainKraftTheme(content: @Composable () -> Unit) {
         content = content
     )
 }
-
-// Alias kept for Kalc-pattern familiarity.
-@Composable
-fun KraftTheme(content: @Composable () -> Unit) {
-    TrainKraftTheme(content = content)
-}

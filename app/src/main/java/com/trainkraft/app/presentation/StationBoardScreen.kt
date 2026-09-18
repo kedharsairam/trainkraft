@@ -50,6 +50,12 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.trainkraft.app.data.GtfsTime
@@ -166,7 +172,7 @@ fun StationBoardScreen(
                         .padding(paddingValues),
                     contentAlignment = Alignment.Center,
                 ) {
-                    androidx.compose.material3.CircularProgressIndicator()
+                    CircularProgressIndicator()
                 }
             }
             dbError != null -> {
@@ -185,7 +191,7 @@ fun StationBoardScreen(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(paddingValues),
-                    contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = KraftSpacing.spacing32),
+                    contentPadding = PaddingValues(bottom = KraftSpacing.spacing32),
                 ) {
                     item(key = "header") {
                         StationBoardHeader(
@@ -345,7 +351,7 @@ private fun DepartureRow(
                     maxLines = 1,
                 )
                 if (departure.dayOffset > 0) {
-                    DayBadgeSmall(departure.dayOffset)
+                    DayBadge(departure.dayOffset)
                 }
             }
             // Train name + destination (terminus). Falls back to trainName alone.
@@ -417,7 +423,7 @@ private fun StationBoardEmptyState(
         verticalArrangement = Arrangement.spacedBy(KraftSpacing.spacing12),
     ) {
         Surface(
-            shape = androidx.compose.foundation.shape.CircleShape,
+            shape = CircleShape,
             color = MaterialTheme.colorScheme.surfaceVariant,
             modifier = Modifier.size(72.dp),
         ) {
@@ -439,17 +445,17 @@ private fun StationBoardEmptyState(
             text = "No trains are scheduled from $stationCode for $formattedDate. Weekday timetables vary — try a nearby station or check again tomorrow.",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            textAlign = TextAlign.Center,
         )
         Spacer(Modifier.size(KraftSpacing.spacing8))
         Row(horizontalArrangement = Arrangement.spacedBy(KraftSpacing.spacing12)) {
-            androidx.compose.material3.OutlinedButton(
+            OutlinedButton(
                 onClick = onBack,
                 modifier = Modifier.heightIn(min = 44.dp),
             ) {
                 Text("Go back")
             }
-            androidx.compose.material3.Button(
+            Button(
                 onClick = onRetry,
                 modifier = Modifier.heightIn(min = 44.dp),
             ) {
@@ -480,8 +486,8 @@ private fun StationBoardErrorState(
             modifier = Modifier.padding(KraftSpacing.spacing24),
         ) {
             Surface(
-                shape = androidx.compose.foundation.shape.CircleShape,
-                color = MaterialTheme.colorScheme.errorContainer,
+            shape = CircleShape,
+            color = MaterialTheme.colorScheme.errorContainer,
                 modifier = Modifier.size(56.dp),
             ) {
                 Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
@@ -502,7 +508,7 @@ private fun StationBoardErrorState(
                 text = message,
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                textAlign = TextAlign.Center,
             )
             TextButton(onClick = onRetry, modifier = Modifier.heightIn(min = 44.dp)) {
                 Text("Retry")
@@ -511,20 +517,4 @@ private fun StationBoardErrorState(
     }
 }
 
-@Composable
-private fun DayBadgeSmall(dayOffset: Int) {
-    Surface(
-        shape = MaterialTheme.shapes.small,
-        color = MaterialTheme.colorScheme.secondaryContainer,
-    ) {
-        Text(
-            text = "Day +$dayOffset",
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSecondaryContainer,
-            modifier = Modifier.padding(
-                horizontal = KraftSpacing.spacing8,
-                vertical = KraftSpacing.spacing2,
-            ),
-        )
-    }
-}
+

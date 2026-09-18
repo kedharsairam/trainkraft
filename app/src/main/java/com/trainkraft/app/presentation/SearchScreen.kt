@@ -58,21 +58,7 @@ import com.trainkraft.app.data.StationEntity
 import com.trainkraft.app.data.TrainEntity
 import com.trainkraft.app.ui.theme.KraftSpacing
 
-/** Shared train-type label (GTFS route_type, may be null/unknown). */
-fun trainTypeLabel(type: String?): String {
-    if (type.isNullOrBlank()) return "Rail"
-    return when (type.trim()) {
-        "0" -> "Tram"
-        "1" -> "Metro"
-        "2" -> "Rail"
-        "3" -> "Bus"
-        "4" -> "Ferry"
-        "5" -> "Cable"
-        "6" -> "Gondola"
-        "7" -> "Funicular"
-        else -> if (type.length <= 12) type else "Rail"
-    }
-}
+
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -289,18 +275,7 @@ fun SearchScreen(
     }
 }
 
-@Composable
-private fun SectionHeader(text: String) {
-    Text(
-        text = text.uppercase(),
-        style = MaterialTheme.typography.labelMedium,
-        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-        modifier = Modifier.padding(
-            horizontal = KraftSpacing.spacing16,
-            vertical = KraftSpacing.spacing8,
-        ),
-    )
-}
+
 
 @Composable
 private fun TrainRow(train: TrainEntity, onClick: () -> Unit) {
@@ -400,20 +375,4 @@ private fun StationRow(station: StationEntity, onClick: () -> Unit) {
     }
 }
 
-@Composable
-private fun TypeBadge(label: String) {
-    Surface(
-        shape = MaterialTheme.shapes.small,
-        color = MaterialTheme.colorScheme.primaryContainer,
-    ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onPrimaryContainer,
-            modifier = Modifier.padding(
-                horizontal = KraftSpacing.spacing8,
-                vertical = KraftSpacing.spacing2,
-            ),
-        )
-    }
-}
+

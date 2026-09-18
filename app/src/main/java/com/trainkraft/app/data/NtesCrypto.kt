@@ -26,9 +26,10 @@ import javax.crypto.spec.SecretKeySpec
  */
 object NtesCrypto {
 
-    const val KEY = "***REMOVED***"
-    const val IV = "***REMOVED***"
-    const val SCKEY = "***REMOVED***"
+    /** Empty fallbacks — force remote fetch or graceful failure. */
+    const val KEY = ""
+    const val IV = ""
+    const val SCKEY = ""
 
     private val HEX_CHARS = "0123456789ABCDEF".toCharArray()
 
