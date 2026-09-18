@@ -15,6 +15,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.trainkraft.app.presentation.BetweenScreen
+import com.trainkraft.app.presentation.PnrScreen
 import com.trainkraft.app.presentation.SearchScreen
 import com.trainkraft.app.presentation.SettingsScreen
 import com.trainkraft.app.presentation.StationBoardScreen
@@ -63,6 +64,7 @@ object TrainKraftDestinations {
     const val SEARCH = "search"
     const val SETTINGS = "settings"
     const val BETWEEN = "between"
+    const val PNR = "pnr"
 
     const val TRAIN_DETAIL_ROUTE = "trainDetail/{trainNumber}"
     const val STATION_BOARD_ROUTE = "stationBoard/{stationCode}"
@@ -196,7 +198,24 @@ fun TrainKraftNavHost() {
             popEnterTransition = { slideInFromLeft },
             popExitTransition = { slideOutToRight },
         ) {
-            SettingsScreen(onBack = { navController.popBackStack() })
+            SettingsScreen(
+                onBack = { navController.popBackStack() },
+                onPnrClick = {
+                    navController.navigate(TrainKraftDestinations.PNR) {
+                        launchSingleTop = true
+                    }
+                },
+            )
+        }
+        // PNR Status — slide from right
+        composable(
+            route = TrainKraftDestinations.PNR,
+            enterTransition = { slideInFromRight },
+            exitTransition = { slideOutToLeft },
+            popEnterTransition = { slideInFromLeft },
+            popExitTransition = { slideOutToRight },
+        ) {
+            PnrScreen(onBack = { navController.popBackStack() })
         }
     }
 }

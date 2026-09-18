@@ -15,9 +15,11 @@ object SettingsStore {
 
     private val KEY_AUTO_REFRESH_LIVE = booleanPreferencesKey("auto_refresh_live")
     private val KEY_CACHE_DURATION_HOURS = intPreferencesKey("cache_duration_hours")
+    private val KEY_USE_24H = booleanPreferencesKey("use_24h")
 
     const val DEFAULT_AUTO_REFRESH_LIVE = true
     const val DEFAULT_CACHE_DURATION_HOURS = 24
+    const val DEFAULT_USE_24H = true
 
     /** Selectable cache durations, in hours (168 = 7 days). */
     val CACHE_DURATION_OPTIONS = listOf(1, 6, 24, 168)
@@ -49,6 +51,17 @@ object SettingsStore {
     suspend fun setCacheDurationHours(context: Context, hours: Int) {
         context.settingsDataStore.edit { prefs ->
             prefs[KEY_CACHE_DURATION_HOURS] = hours
+        }
+    }
+
+    fun use24hFlow(context: Context): Flow<Boolean> =
+        context.settingsDataStore.data.map { prefs ->
+            prefs[KEY_USE_24H] ?: DEFAULT_USE_24H
+        }
+
+    suspend fun setUse24h(context: Context, enabled: Boolean) {
+        context.settingsDataStore.edit { prefs ->
+            prefs[KEY_USE_24H] = enabled
         }
     }
 }
