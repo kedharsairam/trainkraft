@@ -68,7 +68,10 @@ class TrainDetailViewModel(
                     .firstOrNull { it.trainNumber.equals(trainNumber, ignoreCase = true) }
                     ?: dao.searchTrains(trainNumber).firstOrNull()
             } catch (e: Exception) {
-                _dbError.value = e.message ?: "Database error"
+                if (com.trainkraft.app.BuildConfig.DEBUG) {
+                    android.util.Log.e("TrainDetailVM", "loadSchedule failed", e)
+                }
+                _dbError.value = mapTimetableError(e)
             } finally {
                 _isLoading.value = false
             }
@@ -98,17 +101,41 @@ class TrainDetailViewModel(
                 }
                 val date = dateFormat.format(Date()).uppercase(Locale.ENGLISH)
                 val keys = NtesConfig.getKeys(getApplication())
-                val result = NtesApi.liveStatus(trimmed, date, keys)
-                result
+                val apiResult = NtesApi.liveStatus(trimmed, date, keys)
+                apiResult
                     .onSuccess { _liveStatusJson.value = it }
                     .onFailure { e ->
-                        _liveError.value = e.message ?: "Live status failed"
+                        if (com.trainkraft.app.BuildConfig.DEBUG) {
+                            android.util.Log.e("TrainDetailVM", "liveStatus failed", e)
+                        }
+                        _liveError.value = mapLiveError(e)
                     }
             } catch (e: Exception) {
-                _liveError.value = e.message ?: "Live status failed"
+                if (com.trainkraft.app.BuildConfig.DEBUG) {
+                    android.util.Log.e("TrainDetailVM", "liveStatus exception", e)
+                }
+                _liveError.value = mapLiveError(e)
             } finally {
                 _isLiveLoading.value = false
             }
+        }
+    }
+
+    private fun mapTimetableError(e: Exception): String {
+        // Never surface raw DB internals.
+        return "Timetable unavailable. Please try again."
+    }
+
+    private fun mapLiveError(e: Throwable): String {
+        val msg = e.message?.lowercase().orEmpty()
+        return when {
+            e is java.io.IOException || "unable to resolve host" in msg || "timeout" in msg || "network" in msg ->
+                "Network unavailable. Check your connection and try again."
+            "server error" in msg || "http" in msg ->
+                "Live status unavailable. Please try again later."
+            msg.isBlank() -> "Live status unavailable. Please try again."
+            msg.length > 120 -> "Live status unavailable. Please try again."
+            else -> "Live status unavailable. Please try again."
         }
     }
 

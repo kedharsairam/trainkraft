@@ -58,7 +58,7 @@ def parse_gtfs_time(value):
         h = int(parts[0])
         m = int(parts[1]) if len(parts) > 1 else 0
         total = h * 60 + m
-        return total, h // 24
+        return total % 1440, h // 24
     except (ValueError, IndexError):
         return None, 0
 

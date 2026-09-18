@@ -1,8 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <full-backup-content>
-    <!-- Train schedules are public data: allow DB backup. Only exclude user prefs/favorites. -->
+    <!-- Train schedules are public data: allow DB backup. Exclude user prefs/DataStore. -->
     <exclude domain="sharedpref" path="trainkraft_settings" />
     <exclude domain="sharedpref" path="trainkraft_favorites" />
-    <exclude domain="datastore" path="trainkraft_settings.preferences_pb" />
-    <exclude domain="datastore" path="trainkraft_favorites.preferences_pb" />
+    <exclude domain="file" path="trainkraft_settings.preferences_pb" />
+    <exclude domain="file" path="trainkraft_favorites.preferences_pb" />
+    <exclude domain="file" path="trainkraft_alarms.preferences_pb" />
 </full-backup-content>

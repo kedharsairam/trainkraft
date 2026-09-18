@@ -28,28 +28,6 @@ data class ScheduleStop(
     val dayOffset: Int
 )
 
-/** A trip that serves fromCode -> toCode in order. */
-data class TrainsBetweenResult(
-    @ColumnInfo(name = "trip_id")
-    val tripId: String,
-    @ColumnInfo(name = "train_number")
-    val trainNumber: String,
-    @ColumnInfo(name = "train_name")
-    val trainName: String,
-    @ColumnInfo(name = "from_seq")
-    val fromSeq: Int,
-    @ColumnInfo(name = "to_seq")
-    val toSeq: Int,
-    @ColumnInfo(name = "from_dep")
-    val fromDep: Int,
-    @ColumnInfo(name = "to_arr")
-    val toArr: Int,
-    @ColumnInfo(name = "from_day_offset")
-    val fromDayOffset: Int,
-    @ColumnInfo(name = "to_day_offset")
-    val toDayOffset: Int
-)
-
 /** One departure row for a station board. */
 data class StationDeparture(
     @ColumnInfo(name = "trip_id")
@@ -65,7 +43,35 @@ data class StationDeparture(
     @ColumnInfo(name = "seq")
     val seq: Int,
     @ColumnInfo(name = "service_id")
-    val serviceId: String
+    val serviceId: String,
+    @ColumnInfo(name = "dest_code")
+    val destCode: String? = null,
+    @ColumnInfo(name = "dest_name")
+    val destName: String? = null
+)
+
+/** One row for trains-between-stations results. */
+data class BetweenResult(
+    @ColumnInfo(name = "train_number")
+    val trainNumber: String,
+    @ColumnInfo(name = "train_name")
+    val trainName: String,
+    @ColumnInfo(name = "from_code")
+    val fromCode: String,
+    @ColumnInfo(name = "from_name")
+    val fromName: String,
+    @ColumnInfo(name = "dep_min")
+    val depMin: Int,
+    @ColumnInfo(name = "dep_day_offset")
+    val depDayOffset: Int,
+    @ColumnInfo(name = "to_code")
+    val toCode: String,
+    @ColumnInfo(name = "to_name")
+    val toName: String,
+    @ColumnInfo(name = "arr_min")
+    val arrMin: Int,
+    @ColumnInfo(name = "arr_day_offset")
+    val arrDayOffset: Int,
 )
 
 @Dao
@@ -108,18 +114,6 @@ interface TrainDao {
         """
     )
     suspend fun searchStations(query: String): List<StationEntity>
-
-    /** Alias kept for callers that explicitly want the LIKE path. */
-    @Query(
-        """
-        SELECT * FROM stations
-        WHERE code LIKE '%' || :query || '%' COLLATE NOCASE
-           OR name LIKE '%' || :query || '%' COLLATE NOCASE
-        ORDER BY name
-        LIMIT 20
-        """
-    )
-    suspend fun searchStationsLike(query: String): List<StationEntity>
 
     // ---- 2. Train search ----
 
@@ -165,34 +159,7 @@ interface TrainDao {
     )
     suspend fun getTrainSchedule(trainNumber: String): List<ScheduleStop>
 
-    // ---- 4. Trains between two stations (same trip, correct order) ----
-
-    @Query(
-        """
-        SELECT t.trip_id AS trip_id,
-               tr.train_number AS train_number,
-               tr.name AS train_name,
-               fromSt.seq AS from_seq,
-               toSt.seq AS to_seq,
-               fromSt.dep_min AS from_dep,
-               toSt.arr_min AS to_arr,
-               fromSt.day_offset AS from_day_offset,
-               toSt.day_offset AS to_day_offset
-        FROM trips AS t
-        JOIN trains AS tr ON tr.route_id = t.route_id
-        JOIN stop_times AS fromSt ON fromSt.trip_id = t.trip_id
-        JOIN stations AS fromS ON fromS.stop_id = fromSt.stop_id
-        JOIN stop_times AS toSt ON toSt.trip_id = t.trip_id
-        JOIN stations AS toS ON toS.stop_id = toSt.stop_id
-        WHERE fromS.code = :fromCode
-          AND toS.code = :toCode
-          AND fromSt.seq < toSt.seq
-        ORDER BY fromSt.dep_min, fromSt.day_offset
-        """
-    )
-    suspend fun getTrainsBetween(fromCode: String, toCode: String): List<TrainsBetweenResult>
-
-    // ---- 5. Station board: departures for a weekday ----
+    // ---- 4. Station board: departures for a weekday ----
     // Best effort: filters trips whose calendar row runs on :weekday
     // (0=Mon..6=Sun, matching java.time.DayOfWeek.value - 1).
     // Date-range (start/end) filtering is left to the caller, which knows
@@ -207,7 +174,19 @@ interface TrainDao {
                st.dep_min AS dep_min,
                st.day_offset AS day_offset,
                st.seq AS seq,
-               t.service_id AS service_id
+               t.service_id AS service_id,
+               (
+                 SELECT s2.code FROM stop_times AS st2
+                 JOIN stations AS s2 ON s2.stop_id = st2.stop_id
+                 WHERE st2.trip_id = t.trip_id
+                 ORDER BY st2.seq DESC LIMIT 1
+               ) AS dest_code,
+               (
+                 SELECT s2.name FROM stop_times AS st2
+                 JOIN stations AS s2 ON s2.stop_id = st2.stop_id
+                 WHERE st2.trip_id = t.trip_id
+                 ORDER BY st2.seq DESC LIMIT 1
+               ) AS dest_name
         FROM stop_times AS st
         JOIN stations AS s ON s.stop_id = st.stop_id
         JOIN trips AS t ON t.trip_id = st.trip_id
@@ -237,4 +216,51 @@ interface TrainDao {
         todayDate: Int? = null,
         afterMin: Int? = null
     ): List<StationDeparture>
+
+    // ---- 5. Trains between two stations ----
+    // Finds all trips where both stations exist, source comes before destination,
+    // filtered by weekday. Returns departure from source + arrival at destination.
+
+    @Query(
+        """
+        SELECT tr.train_number AS train_number,
+               tr.name AS train_name,
+               s_from.code AS from_code,
+               s_from.name AS from_name,
+               st_from.dep_min AS dep_min,
+               st_from.day_offset AS dep_day_offset,
+               s_to.code AS to_code,
+               s_to.name AS to_name,
+               st_to.arr_min AS arr_min,
+               st_to.day_offset AS arr_day_offset
+        FROM stop_times AS st_from
+        JOIN stop_times AS st_to ON st_from.trip_id = st_to.trip_id
+        JOIN stations AS s_from ON s_from.stop_id = st_from.stop_id
+        JOIN stations AS s_to ON s_to.stop_id = st_to.stop_id
+        JOIN trips AS t ON t.trip_id = st_from.trip_id
+        JOIN trains AS tr ON tr.route_id = t.route_id
+        JOIN calendar AS c ON c.service_id = t.service_id
+        WHERE s_from.code = :fromCode
+          AND s_to.code = :toCode
+          AND st_from.seq < st_to.seq
+          AND (
+            CASE :weekday
+              WHEN 0 THEN c.mon
+              WHEN 1 THEN c.tue
+              WHEN 2 THEN c.wed
+              WHEN 3 THEN c.thu
+              WHEN 4 THEN c.fri
+              WHEN 5 THEN c.sat
+              ELSE c.sun
+            END
+          ) = 1
+        ORDER BY st_from.day_offset, st_from.dep_min
+        LIMIT 50
+        """
+    )
+    suspend fun getTrainsBetween(
+        fromCode: String,
+        toCode: String,
+        weekday: Int,
+    ): List<BetweenResult>
 }

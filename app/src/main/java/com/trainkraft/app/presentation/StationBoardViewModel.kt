@@ -59,7 +59,10 @@ class StationBoardViewModel(
                 val weekday = LocalDate.now().dayOfWeek.value - 1
                 _departures.value = dao.getStationBoard(stationCode, weekday)
             } catch (e: Exception) {
-                _dbError.value = e.message ?: "Database error"
+                if (com.trainkraft.app.BuildConfig.DEBUG) {
+                    android.util.Log.e("StationBoardVM", "loadBoard failed", e)
+                }
+                _dbError.value = mapBoardError(e)
             } finally {
                 _isLoading.value = false
             }
@@ -67,6 +70,9 @@ class StationBoardViewModel(
     }
 
     fun retry() = loadBoard()
+
+    private fun mapBoardError(e: Exception): String =
+        "Timetable unavailable. Please try again."
 
     class Factory(
         private val application: Application,
