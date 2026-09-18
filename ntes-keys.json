@@ -1,7 +1,7 @@
 {
-  "key": "REPLACE_WITH_16_CHARS",
-  "iv": "REPLACE_WITH_16_CHARS",
-  "sckey": "REPLACE_WITH_32_HEX_CHARS",
+  "key": "8EA4DB2CC1EB3DC5",
+  "iv": "7DC5EB3BB4DB6EA8",
+  "sckey": "645fbc1e56e23365f2f3c204ae0899f6",
   "endpoint": "https://enquiry.indianrail.gov.in/crisns/AppServAnd",
   "version": 1
 }
