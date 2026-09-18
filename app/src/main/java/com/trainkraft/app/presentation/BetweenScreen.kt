@@ -46,7 +46,6 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -272,10 +271,7 @@ private fun StationPicker(
             onValueChange = onQueryChange,
             modifier = Modifier.fillMaxWidth(),
             placeholder = {
-                Text(
-                    if (label == "From") "Station name or code"
-                    else "Station name or code",
-                )
+                Text("Station name or code")
             },
             leadingIcon = {
                 Icon(

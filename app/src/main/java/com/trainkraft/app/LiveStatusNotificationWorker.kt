@@ -47,7 +47,7 @@ class LiveStatusNotificationWorker(
             val request = PeriodicWorkRequestBuilder<LiveStatusNotificationWorker>(
                 10, TimeUnit.MINUTES,
             )
-                .setInputData(androidx.work.workDataOf(TRAIN_NUMBER_KEY to trainNumber))
+                .setInputData(workDataOf(TRAIN_NUMBER_KEY to trainNumber))
                 .build()
             WorkManager.getInstance(context)
                 .enqueueUniquePeriodicWork(
@@ -63,17 +63,15 @@ class LiveStatusNotificationWorker(
         }
 
         private fun createNotificationChannel(context: Context) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                val channel = NotificationChannel(
-                    CHANNEL_ID,
-                    "Live Train Status",
-                    NotificationManager.IMPORTANCE_LOW,
-                ).apply {
-                    description = "Periodic live status updates for tracked trains"
-                }
-                val nm = context.getSystemService(NotificationManager::class.java)
-                nm.createNotificationChannel(channel)
+            val channel = NotificationChannel(
+                CHANNEL_ID,
+                "Live Train Status",
+                NotificationManager.IMPORTANCE_LOW,
+            ).apply {
+                description = "Periodic live status updates for tracked trains"
             }
+            val nm = context.getSystemService(NotificationManager::class.java)
+            nm.createNotificationChannel(channel)
         }
     }
 
@@ -131,6 +129,17 @@ class LiveStatusNotificationWorker(
     }
 
     private fun postNotification(trainNumber: String, title: String, body: String) {
+        // Check permission before posting (Android 13+)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(
+                    applicationContext,
+                    Manifest.permission.POST_NOTIFICATIONS,
+                ) != PackageManager.PERMISSION_GRANTED
+            ) {
+                return
+            }
+        }
+
         val notification = NotificationCompat.Builder(applicationContext, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_menu_recent_history)
             .setContentTitle(title)

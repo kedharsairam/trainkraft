@@ -31,3 +31,13 @@
     public static final java.lang.String IV;
     public static final java.lang.String SCKEY;
 }
+
+# WorkManager — keep Worker class for serialization
+-keep class com.trainkraft.app.LiveStatusNotificationWorker { *; }
+
+# PNR data classes (used by JSONObject reflection)
+-keep class com.trainkraft.app.data.PnrApi$PnrResult { *; }
+-keep class com.trainkraft.app.data.PnrApi$PnrPassenger { *; }
+
+# NtesKeys (used by NtesConfig.parseKeys)
+-keep class com.trainkraft.app.data.NtesKeys { *; }

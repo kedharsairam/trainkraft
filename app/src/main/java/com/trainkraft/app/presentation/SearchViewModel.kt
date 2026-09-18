@@ -10,13 +10,10 @@ import com.trainkraft.app.data.TrainDatabase
 import com.trainkraft.app.data.TrainEntity
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 /**
@@ -46,11 +43,6 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
 
     private val _uiState = MutableStateFlow<SearchUiState>(SearchUiState.Idle)
     val uiState: StateFlow<SearchUiState> = _uiState.asStateFlow()
-
-    @OptIn(FlowPreview::class)
-    val hasResults: StateFlow<Boolean> = combine(_stationResults, _trainResults) { s, t ->
-        s.isNotEmpty() || t.isNotEmpty()
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
     init {
         viewModelScope.launch {

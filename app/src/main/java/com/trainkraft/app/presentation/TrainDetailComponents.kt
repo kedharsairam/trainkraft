@@ -109,7 +109,10 @@ internal fun parseLiveJson(raw: String): LiveParsed? {
             }
         }
         LiveParsed(delay, platform, lastLocation, status, destination, source, date, fallback)
-    } catch (_: Exception) {
+    } catch (e: Exception) {
+        if (com.trainkraft.app.BuildConfig.DEBUG) {
+            android.util.Log.d("TrainDetailComponents", "parseLiveJson failed", e)
+        }
         null
     }
 }
@@ -318,7 +321,10 @@ private fun parseCoachPosition(json: String): List<String>? {
         } else {
             coachPos.split("-").map { it.trim() }
         }
-    } catch (_: Exception) {
+    } catch (e: Exception) {
+        if (com.trainkraft.app.BuildConfig.DEBUG) {
+            android.util.Log.d("TrainDetailComponents", "parseCoachPosition failed", e)
+        }
         null
     }
 }
@@ -346,7 +352,10 @@ private fun parseCoachClass(json: String): String? {
         }
         grouped.add(current to count)
         grouped.joinToString(" + ") { (cls, cnt) -> if (cnt > 1) "$cnt\u00d7$cls" else cls }
-    } catch (_: Exception) {
+    } catch (e: Exception) {
+        if (com.trainkraft.app.BuildConfig.DEBUG) {
+            android.util.Log.d("TrainDetailComponents", "parseCoachClass failed", e)
+        }
         null
     }
 }
@@ -428,7 +437,10 @@ private fun parseAvgDelay(json: String): List<Pair<String, String>> {
             entries.add(stnName to delay)
         }
         entries
-    } catch (_: Exception) {
+    } catch (e: Exception) {
+        if (com.trainkraft.app.BuildConfig.DEBUG) {
+            android.util.Log.d("TrainDetailComponents", "parseAvgDelay failed", e)
+        }
         emptyList()
     }
 }
