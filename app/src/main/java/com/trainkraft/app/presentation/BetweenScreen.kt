@@ -1,16 +1,20 @@
 package com.trainkraft.app.presentation
 
 import android.app.Application
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
@@ -18,13 +22,15 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.SwapVert
 import androidx.compose.material.icons.filled.Train
+import androidx.compose.material.icons.outlined.Train
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -33,29 +39,38 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.kraft.ui.components.EmptyState
+import com.kraft.ui.components.ErrorState
+import com.kraft.ui.components.KraftTopBar
+import com.kraft.ui.components.ShimmerList
+import com.kraft.ui.motion.KraftSprings
+import com.kraft.ui.motion.rememberReduceMotion
+import com.kraft.ui.tokens.KraftColors
+import com.kraft.ui.tokens.KraftConstants
+import com.kraft.ui.tokens.KraftIconSize
+import com.kraft.ui.tokens.KraftRadius
+import com.kraft.ui.tokens.KraftSpacing
 import com.trainkraft.app.data.BetweenResult
 import com.trainkraft.app.data.GtfsTime
 import com.trainkraft.app.data.SettingsStore
-import com.trainkraft.app.ui.theme.KraftSpacing
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -89,29 +104,16 @@ fun BetweenScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        text = "Between Stations",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                    )
-                },
+            KraftTopBar(
+                title = "Between Stations",
                 navigationIcon = {
-                    IconButton(
-                        onClick = {
-                            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            onBack()
-                        },
-                        modifier = Modifier.size(48.dp),
-                    ) {
+                    IconButton(onClick = {
+                        haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        onBack()
+                    }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background,
-                    scrolledContainerColor = MaterialTheme.colorScheme.surface,
-                ),
             )
         },
         contentWindowInsets = WindowInsets.safeDrawing,
@@ -120,14 +122,17 @@ fun BetweenScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues),
+            contentPadding = PaddingValues(
+                start = KraftSpacing.ScreenEdge,
+                end = KraftSpacing.ScreenEdge,
+                bottom = KraftSpacing.Spacing16,
+            ),
+            verticalArrangement = Arrangement.spacedBy(KraftSpacing.Spacing8),
         ) {
             // Station pickers
             item(key = "pickers") {
                 Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = KraftSpacing.spacing16, vertical = KraftSpacing.spacing8),
-                    verticalArrangement = Arrangement.spacedBy(KraftSpacing.spacing8),
+                    verticalArrangement = Arrangement.spacedBy(KraftSpacing.Spacing8),
                 ) {
                     StationPicker(
                         label = "From",
@@ -138,21 +143,30 @@ fun BetweenScreen(
                         onSelect = viewModel::selectFrom,
                         onClear = { viewModel.onFromQueryChange("") },
                     )
-                    // Swap button
+                    // Swap button — centered frosted circle
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.Center,
                     ) {
-                        IconButton(
-                            onClick = {
-                                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                viewModel.swap()
-                            },
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier
+                                .size(KraftSpacing.TouchTarget)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                                .clickable(
+                                    role = Role.Button,
+                                    onClickLabel = "Swap stations",
+                                    onClick = {
+                                        haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                        viewModel.swap()
+                                    },
+                                ),
                         ) {
                             Icon(
                                 Icons.Filled.SwapVert,
-                                contentDescription = "Swap stations",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
                             )
                         }
                     }
@@ -166,49 +180,39 @@ fun BetweenScreen(
                         onClear = { viewModel.onToQueryChange("") },
                     )
                 }
-                HorizontalDivider()
             }
 
-            // Loading
             if (isLoading) {
                 item(key = "loading") {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(120.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        CircularProgressIndicator()
-                    }
+                    ShimmerList(rows = 5, contentDescription = "Finding trains")
                 }
             }
 
-            // Error
             if (error != null && !isLoading) {
                 item(key = "error") {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(KraftSpacing.spacing24),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(KraftSpacing.spacing8),
-                    ) {
-                        Text(
-                            text = error ?: "",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
+                    ErrorState(
+                        message = error ?: "",
+                        onRetry = { viewModel.retry() },
+                    )
                 }
             }
 
-            // Results header
+            if (!isLoading && error == null && results.isEmpty() &&
+                fromStation != null && toStation != null
+            ) {
+                item(key = "empty") {
+                    EmptyState(
+                        title = "No direct trains",
+                        message = "No trains run directly from ${fromStation?.code} to ${toStation?.code}. Try nearby stations.",
+                        icon = Icons.Outlined.Train,
+                    )
+                }
+            }
+
             if (results.isNotEmpty()) {
                 item(key = "results-header") {
                     Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = KraftSpacing.spacing16, vertical = KraftSpacing.spacing12),
+                        modifier = Modifier.padding(vertical = KraftSpacing.Spacing8),
                     ) {
                         Text(
                             text = "${results.size} train${if (results.size != 1) "s" else ""}",
@@ -221,28 +225,19 @@ fun BetweenScreen(
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
-                    HorizontalDivider()
                 }
             }
 
-            // Result rows
             items(results, key = { "${it.trainNumber}-${it.fromCode}-${it.toCode}" }) { result ->
-                BetweenRow(
+                BetweenCard(
                     result = result,
                     use24h = use24h,
                     onClick = {
                         haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        focusManager.clearFocus()
                         onTrainClick(result.trainNumber)
                     },
                 )
-                HorizontalDivider(modifier = Modifier.padding(start = KraftSpacing.spacing64))
-            }
-
-            // Bottom spacer
-            if (results.isNotEmpty()) {
-                item(key = "bottom-spacer") {
-                    Spacer(Modifier.padding(bottom = KraftSpacing.spacing32))
-                }
             }
         }
     }
@@ -264,20 +259,18 @@ private fun StationPicker(
             text = label,
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(bottom = 4.dp),
+            modifier = Modifier.padding(bottom = KraftSpacing.Spacing4),
         )
         TextField(
             value = query,
             onValueChange = onQueryChange,
             modifier = Modifier.fillMaxWidth(),
-            placeholder = {
-                Text("Station name or code")
-            },
+            placeholder = { Text("Station name or code") },
             leadingIcon = {
                 Icon(
                     Icons.Filled.Train,
                     contentDescription = null,
-                    modifier = Modifier.size(20.dp),
+                    modifier = Modifier.size(KraftIconSize.Medium),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             },
@@ -292,19 +285,20 @@ private fun StationPicker(
                 }
             },
             singleLine = true,
+            shape = RoundedCornerShape(KraftRadius.Pill),
             colors = TextFieldDefaults.colors(
-                focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
                 focusedIndicatorColor = Color.Transparent,
                 unfocusedIndicatorColor = Color.Transparent,
             ),
         )
         // Autocomplete results
         if (results.isNotEmpty() && selected == null) {
+            Spacer(Modifier.padding(top = KraftSpacing.Spacing4))
             Surface(
-                shape = MaterialTheme.shapes.medium,
-                color = MaterialTheme.colorScheme.surface,
-                tonalElevation = 4.dp,
+                shape = RoundedCornerShape(KraftRadius.Standard),
+                color = MaterialTheme.colorScheme.surfaceContainerLow,
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Column {
@@ -316,23 +310,19 @@ private fun StationPicker(
                                     focusManager.clearFocus()
                                     onSelect(station)
                                 }
-                                .padding(horizontal = KraftSpacing.spacing16, vertical = 12.dp),
+                                .padding(
+                                    horizontal = KraftSpacing.Spacing16,
+                                    vertical = KraftSpacing.Spacing12,
+                                ),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            Icon(
-                                Icons.Filled.Train,
-                                contentDescription = null,
-                                modifier = Modifier.size(16.dp),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                            Spacer(Modifier.width(KraftSpacing.spacing8))
                             Text(
                                 text = station.code,
                                 style = MaterialTheme.typography.bodyMedium,
                                 fontWeight = FontWeight.Bold,
                                 fontFamily = FontFamily.Monospace,
                             )
-                            Spacer(Modifier.width(KraftSpacing.spacing8))
+                            Spacer(Modifier.width(KraftSpacing.Spacing8))
                             Text(
                                 text = station.name,
                                 style = MaterialTheme.typography.bodySmall,
@@ -341,55 +331,99 @@ private fun StationPicker(
                                 overflow = TextOverflow.Ellipsis,
                             )
                         }
-                        HorizontalDivider(modifier = Modifier.padding(start = KraftSpacing.spacing40))
                     }
                 }
+            }
+        }
+        if (selected != null) {
+            Spacer(Modifier.padding(top = KraftSpacing.Spacing4))
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(KraftRadius.Pill))
+                    .background(
+                        KraftColors.AuroraGreen.copy(alpha = KraftConstants.ContainerAlpha),
+                    )
+                    .padding(
+                        horizontal = KraftSpacing.Spacing12,
+                        vertical = KraftSpacing.Spacing6,
+                    ),
+            ) {
+                Text(
+                    text = "${selected.code} · ${selected.name}",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = KraftColors.AuroraGreen,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
         }
     }
 }
 
 @Composable
-private fun BetweenRow(
+private fun BetweenCard(
     result: BetweenResult,
     use24h: Boolean = true,
     onClick: () -> Unit,
 ) {
-    // Duration calculation (handles day offset)
     val totalDepMin = result.depMin + result.depDayOffset * 1440
     val totalArrMin = result.arrMin + result.arrDayOffset * 1440
     val durationMin = totalArrMin - totalDepMin
     val durH = durationMin / 60
     val durM = durationMin % 60
 
+    val reduceMotion = rememberReduceMotion()
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (pressed) 0.98f else 1f,
+        animationSpec = KraftSprings.press(reduceMotion),
+        label = "betweenPress",
+    )
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .heightIn(min = 72.dp)
-            .clickable(onClick = onClick)
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            }
+            .clip(RoundedCornerShape(KraftRadius.Standard))
+            .background(MaterialTheme.colorScheme.surfaceContainerLow)
+            .clickable(
+                interactionSource = interaction,
+                indication = null,
+                role = Role.Button,
+                onClickLabel = "Open train details",
+                onClick = onClick,
+            )
             .padding(
-                horizontal = KraftSpacing.spacing16,
-                vertical = KraftSpacing.spacing12,
-            ),
+                horizontal = KraftSpacing.Spacing16,
+                vertical = KraftSpacing.Spacing12,
+            )
+            .heightIn(min = KraftSpacing.TouchTarget),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // Train icon
-        Surface(
-            shape = MaterialTheme.shapes.small,
-            color = MaterialTheme.colorScheme.surfaceVariant,
-            modifier = Modifier.size(36.dp),
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier
+                .size(KraftIconSize.XLarge)
+                .clip(CircleShape)
+                .background(
+                    MaterialTheme.colorScheme.primary.copy(
+                        alpha = KraftConstants.ContainerAlpha,
+                    ),
+                ),
         ) {
-            Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-                Icon(
-                    Icons.Filled.Train,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(20.dp),
-                )
-            }
+            Icon(
+                Icons.Filled.Train,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(KraftIconSize.Medium),
+            )
         }
-        Spacer(Modifier.width(KraftSpacing.spacing12))
-        // Train info
+        Spacer(Modifier.width(KraftSpacing.Spacing12))
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = result.trainNumber,
@@ -406,14 +440,14 @@ private fun BetweenRow(
                 overflow = TextOverflow.Ellipsis,
             )
         }
-        Spacer(Modifier.width(KraftSpacing.spacing12))
-        // Times
+        Spacer(Modifier.width(KraftSpacing.Spacing12))
         Column(horizontalAlignment = Alignment.End) {
             Text(
                 text = GtfsTime.format(result.depMin, result.depDayOffset, use24h),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
                 fontFamily = FontFamily.Monospace,
+                color = KraftColors.AuroraGreen,
             )
             Text(
                 text = GtfsTime.format(result.arrMin, result.arrDayOffset, use24h),

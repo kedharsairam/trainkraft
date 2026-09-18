@@ -48,9 +48,10 @@ import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.kraft.ui.components.KraftTopBar
+import com.kraft.ui.tokens.KraftSpacing
 import com.trainkraft.app.BuildConfig
 import com.trainkraft.app.data.SettingsStore
-import com.trainkraft.app.ui.theme.KraftSpacing
 import kotlinx.coroutines.launch
 
 private const val SOURCE_URL = "https://github.com/kedharsairam/trainkraft"
@@ -79,29 +80,18 @@ fun SettingsScreen(onBack: () -> Unit, onPnrClick: () -> Unit = {}) {
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        text = "Settings",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                    )
-                },
+            KraftTopBar(
+                title = "Settings",
                 navigationIcon = {
                     IconButton(
                         onClick = {
                             haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                             onBack()
                         },
-                        modifier = Modifier.size(48.dp),
                     ) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background,
-                    scrolledContainerColor = MaterialTheme.colorScheme.surface,
-                ),
             )
         },
         contentWindowInsets = WindowInsets.safeDrawing,
@@ -158,7 +148,7 @@ fun SettingsScreen(onBack: () -> Unit, onPnrClick: () -> Unit = {}) {
                     trailingContent = {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(KraftSpacing.spacing4),
+                            horizontalArrangement = Arrangement.spacedBy(KraftSpacing.Spacing4),
                         ) {
                             Text(
                                 text = SettingsStore.cacheDurationLabel(cacheHours),
@@ -294,7 +284,7 @@ fun SettingsScreen(onBack: () -> Unit, onPnrClick: () -> Unit = {}) {
                 )
             }
             item(key = "bottom-spacer") {
-                Spacer(Modifier.padding(KraftSpacing.spacing16))
+                Spacer(Modifier.padding(KraftSpacing.Spacing16))
             }
         }
     }
@@ -309,13 +299,13 @@ fun SettingsScreen(onBack: () -> Unit, onPnrClick: () -> Unit = {}) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(bottom = KraftSpacing.spacing24),
+                    .padding(bottom = KraftSpacing.Spacing24),
             ) {
                 // iOS-style sheet header
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = KraftSpacing.spacing16, vertical = KraftSpacing.spacing8),
+                        .padding(horizontal = KraftSpacing.Spacing16, vertical = KraftSpacing.Spacing8),
                     verticalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
                     Text(
@@ -329,7 +319,7 @@ fun SettingsScreen(onBack: () -> Unit, onPnrClick: () -> Unit = {}) {
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                HorizontalDivider(modifier = Modifier.padding(vertical = KraftSpacing.spacing8))
+                HorizontalDivider(modifier = Modifier.padding(vertical = KraftSpacing.Spacing8))
                 SettingsStore.CACHE_DURATION_OPTIONS.forEach { hours ->
                     val selected = hours == cacheHours
                     Row(
@@ -343,7 +333,7 @@ fun SettingsScreen(onBack: () -> Unit, onPnrClick: () -> Unit = {}) {
                                 }
                                 showCacheSheet.value = false
                             }
-                            .padding(horizontal = KraftSpacing.spacing16, vertical = KraftSpacing.spacing8),
+                            .padding(horizontal = KraftSpacing.Spacing16, vertical = KraftSpacing.Spacing8),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Text(
@@ -366,11 +356,11 @@ fun SettingsScreen(onBack: () -> Unit, onPnrClick: () -> Unit = {}) {
                         }
                     }
                     if (hours != SettingsStore.CACHE_DURATION_OPTIONS.last()) {
-                        HorizontalDivider(modifier = Modifier.padding(start = KraftSpacing.spacing16))
+                        HorizontalDivider(modifier = Modifier.padding(start = KraftSpacing.Spacing16))
                     }
                 }
                 // Bottom safe padding for gesture nav
-                Spacer(Modifier.padding(KraftSpacing.spacing8))
+                Spacer(Modifier.padding(KraftSpacing.Spacing8))
             }
         }
     }
@@ -383,8 +373,8 @@ private fun SettingsSectionHeader(text: String) {
         style = MaterialTheme.typography.labelMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
         modifier = Modifier.padding(
-            horizontal = KraftSpacing.spacing16,
-            vertical = KraftSpacing.spacing8,
+            horizontal = KraftSpacing.Spacing16,
+            vertical = KraftSpacing.Spacing8,
         ),
     )
 }

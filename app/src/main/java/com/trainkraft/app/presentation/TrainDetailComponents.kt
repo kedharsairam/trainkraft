@@ -12,8 +12,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Info
+import com.kraft.ui.tokens.KraftColors
+import com.kraft.ui.tokens.KraftRadius
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -33,7 +36,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.trainkraft.app.data.GtfsTime
 import com.trainkraft.app.data.ScheduleStop
-import com.trainkraft.app.ui.theme.KraftSpacing
+import com.kraft.ui.tokens.KraftSpacing
 import org.json.JSONObject
 
 internal data class LiveParsed(
@@ -124,15 +127,15 @@ internal fun LiveParsedCard(json: String) {
     val showRaw = remember { mutableStateOf(false) }
 
     Surface(
-        shape = MaterialTheme.shapes.medium,
-        color = MaterialTheme.colorScheme.surfaceContainerLowest,
+        shape = RoundedCornerShape(KraftRadius.Standard),
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
         tonalElevation = 0.dp,
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(KraftSpacing.spacing12),
-            verticalArrangement = Arrangement.spacedBy(KraftSpacing.spacing8),
+                .padding(KraftSpacing.Spacing16),
+            verticalArrangement = Arrangement.spacedBy(KraftSpacing.Spacing8),
         ) {
             if (parsed != null) {
                 val statusText = buildString {
@@ -145,13 +148,14 @@ internal fun LiveParsedCard(json: String) {
                 if (statusText.isNotBlank()) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(KraftSpacing.spacing8),
+                        horizontalArrangement = Arrangement.spacedBy(KraftSpacing.Spacing8),
                     ) {
+                        // Delay severity: green ≤5min, orange ≤15min, red beyond.
                         val dotColor = when {
                             parsed.delay == null -> MaterialTheme.colorScheme.onSurfaceVariant
-                            parsed.delay.toIntOrNull()?.let { it <= 5 } == true -> MaterialTheme.colorScheme.tertiary
-                            parsed.delay.toIntOrNull()?.let { it <= 15 } == true -> MaterialTheme.colorScheme.error.copy(alpha = 0.7f)
-                            else -> MaterialTheme.colorScheme.error
+                            parsed.delay.toIntOrNull()?.let { it <= 5 } == true -> KraftColors.AuroraGreen
+                            parsed.delay.toIntOrNull()?.let { it <= 15 } == true -> KraftColors.AuroraOrange
+                            else -> KraftColors.AuroraRed
                         }
                         Box(
                             modifier = Modifier
@@ -174,7 +178,7 @@ internal fun LiveParsedCard(json: String) {
 
                 if (details.isNotEmpty()) {
                     Column(
-                        verticalArrangement = Arrangement.spacedBy(KraftSpacing.spacing4),
+                        verticalArrangement = Arrangement.spacedBy(KraftSpacing.Spacing4),
                     ) {
                         details.forEach { (label, value) ->
                             Row(
@@ -199,7 +203,7 @@ internal fun LiveParsedCard(json: String) {
                 }
 
                 if (parsed.fallbackEntries.isNotEmpty()) {
-                    HorizontalDivider(modifier = Modifier.padding(vertical = KraftSpacing.spacing2))
+                    HorizontalDivider(modifier = Modifier.padding(vertical = KraftSpacing.Spacing2))
                     Text(
                         text = if (showRaw.value) "Hide raw data" else "Show raw data",
                         style = MaterialTheme.typography.labelMedium,
@@ -207,11 +211,11 @@ internal fun LiveParsedCard(json: String) {
                         modifier = Modifier
                             .fillMaxWidth()
                             .clickable { showRaw.value = !showRaw.value }
-                            .padding(vertical = KraftSpacing.spacing4),
+                            .padding(vertical = KraftSpacing.Spacing4),
                     )
                     if (showRaw.value) {
                         Column(
-                            verticalArrangement = Arrangement.spacedBy(KraftSpacing.spacing2),
+                            verticalArrangement = Arrangement.spacedBy(KraftSpacing.Spacing2),
                         ) {
                             parsed.fallbackEntries.forEach { (k, v) ->
                                 LiveRow(label = k, value = v)
@@ -234,7 +238,7 @@ internal fun LiveRow(label: String, value: String) {
             text = label,
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.weight(1f).padding(end = KraftSpacing.spacing8),
+            modifier = Modifier.weight(1f).padding(end = KraftSpacing.Spacing8),
         )
         Text(
             text = value,
@@ -256,12 +260,12 @@ internal fun CoachPositionSection(json: String) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(KraftSpacing.spacing16),
-        verticalArrangement = Arrangement.spacedBy(KraftSpacing.spacing8),
+            .padding(KraftSpacing.Spacing16),
+        verticalArrangement = Arrangement.spacedBy(KraftSpacing.Spacing8),
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(KraftSpacing.spacing8),
+            horizontalArrangement = Arrangement.spacedBy(KraftSpacing.Spacing8),
         ) {
             Icon(
                 Icons.Filled.Info,
@@ -276,7 +280,7 @@ internal fun CoachPositionSection(json: String) {
             )
         }
         Row(
-            horizontalArrangement = Arrangement.spacedBy(KraftSpacing.spacing4),
+            horizontalArrangement = Arrangement.spacedBy(KraftSpacing.Spacing4),
             modifier = Modifier.fillMaxWidth(),
         ) {
             parsed.forEach { coach ->
@@ -369,8 +373,8 @@ internal fun AvgDelaySection(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(KraftSpacing.spacing16),
-        verticalArrangement = Arrangement.spacedBy(KraftSpacing.spacing8),
+            .padding(KraftSpacing.Spacing16),
+        verticalArrangement = Arrangement.spacedBy(KraftSpacing.Spacing8),
     ) {
         Text(
             text = "Average delay",
@@ -380,7 +384,7 @@ internal fun AvgDelaySection(
         if (isLoading) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(KraftSpacing.spacing8),
+                horizontalArrangement = Arrangement.spacedBy(KraftSpacing.Spacing8),
             ) {
                 CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
                 Text(
@@ -393,7 +397,7 @@ internal fun AvgDelaySection(
         if (json != null && !isLoading) {
             val entries = remember(json) { parseAvgDelay(json) }
             if (entries.isNotEmpty()) {
-                Column(verticalArrangement = Arrangement.spacedBy(KraftSpacing.spacing2)) {
+                Column(verticalArrangement = Arrangement.spacedBy(KraftSpacing.Spacing2)) {
                     entries.take(10).forEach { entry ->
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -404,7 +408,7 @@ internal fun AvgDelaySection(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.width(100.dp),
                             )
-                            Spacer(Modifier.width(KraftSpacing.spacing8))
+                            Spacer(Modifier.width(KraftSpacing.Spacing8))
                             Text(
                                 text = entry.second,
                                 style = MaterialTheme.typography.bodySmall,
@@ -461,8 +465,8 @@ internal fun ScheduleStopRow(
         modifier = Modifier
             .fillMaxWidth()
             .padding(
-                horizontal = KraftSpacing.spacing16,
-                vertical = KraftSpacing.spacing12,
+                horizontal = KraftSpacing.Spacing16,
+                vertical = KraftSpacing.Spacing12,
             ),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -480,10 +484,10 @@ internal fun ScheduleStopRow(
                 textAlign = TextAlign.Center,
             )
         }
-        Spacer(Modifier.width(KraftSpacing.spacing12))
+        Spacer(Modifier.width(KraftSpacing.Spacing12))
         Column(modifier = Modifier.weight(1f)) {
             Row(
-                horizontalArrangement = Arrangement.spacedBy(KraftSpacing.spacing8),
+                horizontalArrangement = Arrangement.spacedBy(KraftSpacing.Spacing8),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(

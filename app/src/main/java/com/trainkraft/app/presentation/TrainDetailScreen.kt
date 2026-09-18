@@ -3,6 +3,11 @@ package com.trainkraft.app.presentation
 import android.app.Application
 import android.content.Intent
 
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,17 +25,19 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CalendarMonth
-
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.NotificationsNone
 import androidx.compose.material.icons.filled.SatelliteAlt
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.outlined.Schedule
+import androidx.compose.material.icons.outlined.SearchOff
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DatePicker
 
@@ -38,16 +45,13 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LargeTopAppBar
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.material3.rememberDatePickerState
-import androidx.compose.material3.rememberTopAppBarState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -56,11 +60,13 @@ import androidx.compose.runtime.remember
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -68,8 +74,18 @@ import androidx.compose.ui.unit.dp
 
 import androidx.lifecycle.viewmodel.compose.viewModel
 
+import com.kraft.ui.components.EmptyState
+import com.kraft.ui.components.ErrorState
+import com.kraft.ui.components.KraftTopBar
+import com.kraft.ui.components.ShimmerList
+import com.kraft.ui.motion.KraftSprings
+import com.kraft.ui.motion.rememberReduceMotion
+import com.kraft.ui.tokens.KraftColors
+import com.kraft.ui.tokens.KraftConstants
+import com.kraft.ui.tokens.KraftIconSize
+import com.kraft.ui.tokens.KraftRadius
+import com.kraft.ui.tokens.KraftSpacing
 import com.trainkraft.app.data.SettingsStore
-import com.trainkraft.app.ui.theme.KraftSpacing
 
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -79,7 +95,7 @@ import java.util.TimeZone
 
 // Divider aligns with station text: 32.dp seq badge + 12.dp gap + 12.dp indent.
 private val TimelineDividerStartPadding =
-    KraftSpacing.spacing32 + KraftSpacing.spacing12 + KraftSpacing.spacing12
+    32.dp + KraftSpacing.Spacing12 + KraftSpacing.Spacing12
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -147,36 +163,16 @@ fun TrainDetailScreen(
     // Date picker dialog
     val showDatePicker = remember { mutableStateOf(false) }
 
-    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior(
-        rememberTopAppBarState()
-    )
-
     Scaffold(
         topBar = {
-            LargeTopAppBar(
-                title = {
-                    Column {
-                        Text(
-                            text = train?.name?.takeIf { it.isNotBlank() } ?: "Train $trainNumber",
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                        if (train?.name?.isNotBlank() == true) {
-                            Text(
-                                text = trainNumber,
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                    }
-                },
+            KraftTopBar(
+                title = train?.name?.takeIf { it.isNotBlank() } ?: "Train $trainNumber",
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 },
                 actions = {
-                    // Notification toggle
                     if (schedule.isNotEmpty()) {
                         IconButton(onClick = {
                             haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
@@ -189,10 +185,11 @@ fun TrainDetailScreen(
                             Icon(
                                 if (isTracking) Icons.Filled.NotificationsActive else Icons.Filled.NotificationsNone,
                                 contentDescription = if (isTracking) "Stop tracking" else "Track live status",
+                                tint = if (isTracking) MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
                     }
-                    // Share button
                     if (schedule.isNotEmpty()) {
                         IconButton(onClick = {
                             haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
@@ -206,7 +203,6 @@ fun TrainDetailScreen(
                             Icon(Icons.Filled.Share, contentDescription = "Share")
                         }
                     }
-                    // Date picker button
                     IconButton(onClick = {
                         haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                         showDatePicker.value = true
@@ -214,7 +210,6 @@ fun TrainDetailScreen(
                         Icon(Icons.Filled.CalendarMonth, contentDescription = "Select date")
                     }
                 },
-                scrollBehavior = scrollBehavior,
             )
         },
         contentWindowInsets = WindowInsets.safeDrawing,
@@ -222,119 +217,84 @@ fun TrainDetailScreen(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(paddingValues)
-                .nestedScroll(scrollBehavior.nestedScrollConnection),
+                .padding(paddingValues),
         ) {
             when {
                 isLoading -> {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        CircularProgressIndicator()
-                    }
+                    ShimmerList(
+                        rows = 10,
+                        contentDescription = "Loading train schedule",
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(horizontal = KraftSpacing.ScreenEdge),
+                    )
                 }
                 dbError != null -> {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(KraftSpacing.spacing16),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(
-                                text = dbError ?: "Database error",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.error,
-                                textAlign = TextAlign.Center,
-                            )
-                            Spacer(Modifier.height(KraftSpacing.spacing12))
-                            Button(
-                                onClick = {
-                                    haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                    viewModel.retry()
-                                },
-                                modifier = Modifier.heightIn(min = 44.dp),
-                            ) {
-                                Text("Retry")
-                            }
-                        }
-                    }
+                    ErrorState(
+                        message = dbError ?: "Database error",
+                        onRetry = {
+                            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            viewModel.retry()
+                        },
+                        modifier = Modifier.padding(horizontal = KraftSpacing.ScreenEdge),
+                    )
                 }
                 schedule.isEmpty() -> {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(horizontal = KraftSpacing.spacing24),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(
-                                text = "No schedule found",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.SemiBold,
-                            )
-                            Spacer(Modifier.height(KraftSpacing.spacing8))
-                            Text(
-                                text = "We couldn't find a timetable for $trainNumber. Check the number or try again.",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                textAlign = TextAlign.Center,
-                            )
-                            Spacer(Modifier.height(KraftSpacing.spacing16))
-                            Button(
-                                onClick = {
-                                    haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                    viewModel.retry()
-                                },
-                                modifier = Modifier.heightIn(min = 44.dp),
-                            ) {
-                                Text("Try again")
-                            }
-                        }
-                    }
+                    EmptyState(
+                        title = "No schedule found",
+                        message = "We couldn't find a timetable for $trainNumber. Check the number or try again.",
+                        icon = Icons.Outlined.Schedule,
+                        actionLabel = "Try again",
+                        onAction = {
+                            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            viewModel.retry()
+                        },
+                        modifier = Modifier.padding(horizontal = KraftSpacing.ScreenEdge),
+                    )
                 }
                 else -> {
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(bottom = KraftSpacing.spacing16),
+                        contentPadding = PaddingValues(
+                            start = KraftSpacing.ScreenEdge,
+                            end = KraftSpacing.ScreenEdge,
+                            bottom = KraftSpacing.Spacing16,
+                        ),
+                        verticalArrangement = Arrangement.spacedBy(KraftSpacing.Spacing8),
                     ) {
-                        item(key = "header") {
-                            TrainHeader(
+                        item(key = "hero") {
+                            TrainHeroCard(
                                 number = train?.trainNumber ?: trainNumber,
                                 name = train?.name ?: "",
                                 type = train?.type,
                                 stopCount = schedule.size,
                                 isLiveLoading = isLiveLoading,
+                                hasLiveData = liveStatusJson != null && liveError == null,
                                 onLiveStatus = {
                                     haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                     viewModel.refreshLiveStatus()
                                 },
                             )
-                            HorizontalDivider()
                         }
                         if (isLiveLoading || liveError != null || liveStatusJson != null) {
                             item(key = "live") {
-                                LiveStatusSection(
+                                LiveStatusCard(
                                     isLiveLoading = isLiveLoading,
                                     liveError = liveError,
                                     liveStatusJson = liveStatusJson,
                                     updatedLabel = liveUpdatedLabel,
-                                    use24h = use24h,
                                     selectedDate = selectedDate,
                                     onRetry = {
                                         haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                         viewModel.refreshLiveStatus()
                                     },
                                 )
-                                HorizontalDivider()
                             }
                         }
                         // Coach position section
                         if (liveStatusJson != null && liveError == null) {
                             item(key = "coach-position") {
                                 CoachPositionSection(json = liveStatusJson!!)
-                                HorizontalDivider()
                             }
                         }
                         // Average delay section
@@ -345,7 +305,6 @@ fun TrainDetailScreen(
                                     isLoading = isAvgDelayLoading,
                                     use24h = use24h,
                                 )
-                                HorizontalDivider()
                             }
                         }
                         item(key = "stops-header") {
@@ -361,11 +320,9 @@ fun TrainDetailScreen(
                             if (index != schedule.lastIndex) {
                                 HorizontalDivider(
                                     modifier = Modifier.padding(start = TimelineDividerStartPadding),
+                                    color = MaterialTheme.colorScheme.outlineVariant,
                                 )
                             }
-                        }
-                        item(key = "bottom-spacing") {
-                            Spacer(Modifier.height(KraftSpacing.spacing8))
                         }
                     }
                 }
@@ -419,7 +376,10 @@ private fun DatePickerDialog(
                 title = {
                     Text(
                         text = "Select date for live status",
-                        modifier = Modifier.padding(start = KraftSpacing.spacing16, top = KraftSpacing.spacing16),
+                        modifier = Modifier.padding(
+                            start = KraftSpacing.Spacing16,
+                            top = KraftSpacing.Spacing16,
+                        ),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold,
                     )
@@ -429,84 +389,150 @@ private fun DatePickerDialog(
     )
 }
 
-
-
+/**
+ * Hero card — big train number, name, type badge, stop count,
+ * and a full-width Live Status action with spring press.
+ */
 @Composable
-private fun TrainHeader(
+private fun TrainHeroCard(
     number: String,
     name: String,
     type: String?,
     stopCount: Int,
     isLiveLoading: Boolean = false,
+    hasLiveData: Boolean = false,
     onLiveStatus: () -> Unit,
 ) {
+    val haptics = LocalHapticFeedback.current
+    val reduceMotion = rememberReduceMotion()
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (pressed) 0.98f else 1f,
+        animationSpec = KraftSprings.press(reduceMotion),
+        label = "heroLivePress",
+    )
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(KraftSpacing.spacing16),
+            .clip(RoundedCornerShape(KraftRadius.Hero))
+            .background(MaterialTheme.colorScheme.surfaceContainerLow)
+            .padding(KraftSpacing.Spacing16),
     ) {
+        Text(
+            text = number,
+            style = MaterialTheme.typography.displayLarge,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary,
+        )
         if (name.isNotBlank()) {
+            Spacer(Modifier.height(KraftSpacing.Spacing4))
             Text(
                 text = name,
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.SemiBold,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
             )
-            Spacer(Modifier.height(KraftSpacing.spacing4))
         }
+        Spacer(Modifier.height(KraftSpacing.Spacing8))
         Row(
-            horizontalArrangement = Arrangement.spacedBy(KraftSpacing.spacing8),
+            horizontalArrangement = Arrangement.spacedBy(KraftSpacing.Spacing8),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             if (type != null) {
                 TypeBadge(trainTypeLabel(type))
             }
             Text(
-                text = "$stopCount stops \u00b7 $number",
+                text = "$stopCount stops",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            if (hasLiveData) {
+                Box(
+                    modifier = Modifier
+                        .size(8.dp)
+                        .background(KraftColors.AuroraGreen, CircleShape),
+                )
+                Text(
+                    text = "Live",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = KraftColors.AuroraGreen,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
         }
-        Spacer(Modifier.height(KraftSpacing.spacing12))
-        Button(
-            onClick = onLiveStatus,
-            enabled = !isLiveLoading,
+        Spacer(Modifier.height(KraftSpacing.Spacing16))
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center,
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(min = 44.dp),
+                .graphicsLayer {
+                    scaleX = scale
+                    scaleY = scale
+                }
+                .clip(RoundedCornerShape(KraftRadius.Pill))
+                .background(MaterialTheme.colorScheme.primary)
+                .clickable(
+                    interactionSource = interaction,
+                    indication = null,
+                    enabled = !isLiveLoading,
+                    role = Role.Button,
+                    onClickLabel = "Check live status",
+                    onClick = {
+                        haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        onLiveStatus()
+                    },
+                )
+                .heightIn(min = KraftSpacing.TouchTarget)
+                .padding(horizontal = KraftSpacing.Spacing16),
         ) {
             if (isLiveLoading) {
                 CircularProgressIndicator(
                     modifier = Modifier.size(18.dp),
                     strokeWidth = 2.dp,
+                    color = MaterialTheme.colorScheme.onPrimary,
                 )
             } else {
-                Icon(Icons.Filled.SatelliteAlt, contentDescription = null)
+                Icon(
+                    Icons.Filled.SatelliteAlt,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onPrimary,
+                    modifier = Modifier.size(KraftIconSize.Medium),
+                )
             }
-            Spacer(Modifier.width(KraftSpacing.spacing8))
-            Text(if (isLiveLoading) "Loading\u2026" else "Live Status")
+            Spacer(Modifier.width(KraftSpacing.Spacing8))
+            Text(
+                text = if (isLiveLoading) "Loading\u2026" else "Live Status",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onPrimary,
+                fontWeight = FontWeight.SemiBold,
+            )
         }
     }
 }
 
 @Composable
-private fun LiveStatusSection(
+private fun LiveStatusCard(
     isLiveLoading: Boolean,
     liveError: String?,
     liveStatusJson: String?,
     updatedLabel: String?,
-    use24h: Boolean,
     selectedDate: String?,
     onRetry: () -> Unit,
 ) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(KraftSpacing.spacing16),
-        verticalArrangement = Arrangement.spacedBy(KraftSpacing.spacing8),
+            .clip(RoundedCornerShape(KraftRadius.Standard))
+            .background(MaterialTheme.colorScheme.surfaceContainerLow)
+            .padding(KraftSpacing.Spacing16),
+        verticalArrangement = Arrangement.spacedBy(KraftSpacing.Spacing8),
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(KraftSpacing.spacing8),
+            horizontalArrangement = Arrangement.spacedBy(KraftSpacing.Spacing8),
         ) {
             Text(
                 text = "Live status",
@@ -532,7 +558,7 @@ private fun LiveStatusSection(
         if (isLiveLoading) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(KraftSpacing.spacing8),
+                horizontalArrangement = Arrangement.spacedBy(KraftSpacing.Spacing8),
             ) {
                 CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
                 Text(
@@ -548,11 +574,31 @@ private fun LiveStatusSection(
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.error,
             )
-            Button(
-                onClick = onRetry,
-                modifier = Modifier.heightIn(min = 44.dp),
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(KraftRadius.Pill))
+                    .background(
+                        MaterialTheme.colorScheme.error.copy(
+                            alpha = KraftConstants.ContainerAlpha,
+                        ),
+                    )
+                    .clickable(
+                        role = Role.Button,
+                        onClickLabel = "Retry live status",
+                        onClick = onRetry,
+                    )
+                    .heightIn(min = KraftSpacing.TouchTarget)
+                    .padding(horizontal = KraftSpacing.Spacing16),
             ) {
-                Text("Retry")
+                Text(
+                    text = "Retry",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.error,
+                    fontWeight = FontWeight.SemiBold,
+                )
             }
         }
         if (liveStatusJson != null && liveError == null && !isLiveLoading) {
@@ -560,15 +606,3 @@ private fun LiveStatusSection(
         }
     }
 }
-
-
-
-
-
-
-
-
-
-
-
-
