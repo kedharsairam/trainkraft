@@ -18,9 +18,9 @@ import org.robolectric.RobolectricTestRunner
 class NtesCryptoTest {
 
     private val testKeys = NtesKeys(
-        key = "***REMOVED***",
-        iv = "***REMOVED***",
-        sckey = "***REMOVED***",
+        key = "TESTKEY123456789",
+        iv = "TESTIV1234567890",
+        sckey = "test1234567890abcdef01234567890ab",
     )
 
     @Test

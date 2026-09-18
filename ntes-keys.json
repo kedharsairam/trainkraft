@@ -1,7 +1,7 @@
 {
-  "key": "***REMOVED***",
-  "iv": "***REMOVED***",
-  "sckey": "***REMOVED***",
+  "key": "REPLACE_WITH_16_CHARS",
+  "iv": "REPLACE_WITH_16_CHARS",
+  "sckey": "REPLACE_WITH_32_HEX_CHARS",
   "endpoint": "https://enquiry.indianrail.gov.in/crisns/AppServAnd",
   "version": 1
 }

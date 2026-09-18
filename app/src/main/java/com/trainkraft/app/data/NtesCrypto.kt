@@ -12,9 +12,9 @@ import javax.crypto.spec.SecretKeySpec
  * Direct port of the verified Python implementation
  * (train-status-deep/ntes-client/ntes/crypto.py, Sep 2026):
  *
- * - Key: b"***REMOVED***" (AES-128, 16 ASCII bytes)
- * - IV:  b"***REMOVED***" (16 ASCII bytes)
- * - sckey: "***REMOVED***"
+ * - Key: 16 ASCII bytes (AES-128)
+ * - IV:  16 ASCII bytes (CBC IV)
+ * - sckey: hex string for MD5 integrity hash
  * - Encrypt: hash = MD5(data + sckey).hexdigest().upper()
  *            cipher = AES-CBC-PKCS7(data) with key+iv
  *            enc = hexlify(base64encode(ciphertext)).upper()
