@@ -2,6 +2,24 @@
 
 All notable changes to TrainKraft are documented here.
 
+## [0.3.0] - 2026-09-19
+
+### Changed
+- AGP 8.9.1 → 9.3.1 (built-in Kotlin, no standalone kotlin-android plugin)
+- Gradle 8.11.1 → 9.7.1
+- Kotlin 2.1.0 → 2.2.10 (bundled with AGP 9.3)
+- compileSdk / targetSdk 36 → 37
+- KSP 2.1.0-1.0.29 → 2.2.10-2.0.2
+- OkHttp 4.12.0 → 5.5.0 (migrated to kotlin.time.Duration API)
+- kotlinx-coroutines-test 1.10.0 → 1.11.0
+- Robolectric 4.14.1 → 4.17
+
+### Fixed
+- Removed standalone kotlin-android plugin (AGP 9.x bundles Kotlin natively)
+- Migrated kotlinOptions DSL to kotlin { compilerOptions { } }
+- OkHttp timeout API: TimeUnit → kotlin.time.Duration
+- .gradle/ cache untracked from git (was in repo despite .gitignore)
+
 ## [0.2.0] - 2026-09-18
 
 ### Added

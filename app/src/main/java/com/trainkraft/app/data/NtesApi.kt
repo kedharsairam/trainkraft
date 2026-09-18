@@ -10,7 +10,7 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
 import java.io.IOException
-import java.util.concurrent.TimeUnit
+import kotlin.time.Duration.Companion.seconds
 
 /**
  * Thin client for the NTES AppServAnd endpoint.
@@ -33,9 +33,9 @@ object NtesApi {
     private val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
 
     private val client = OkHttpClient.Builder()
-        .connectTimeout(10, TimeUnit.SECONDS)
-        .readTimeout(10, TimeUnit.SECONDS)
-        .callTimeout(15, TimeUnit.SECONDS)
+        .connectTimeout(10.seconds)
+        .readTimeout(10.seconds)
+        .callTimeout(15.seconds)
         .build()
 
     private val ALERT_KEYS = arrayOf("AlertMsg", "alertMsg", "AlertMsgHindi", "alertMsgHindi")
