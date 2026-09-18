@@ -15,9 +15,9 @@ import java.util.concurrent.TimeUnit
  * Remote file (`ntes-keys.json`) format:
  * ```json
  * {
- *   "key": "***REMOVED***",
- *   "iv": "***REMOVED***",
- *   "sckey": "***REMOVED***",
+ *   "key": "<16-char-aes-key>",
+ *   "iv": "<16-char-aes-iv>",
+ *   "sckey": "<32-char-hex-sckey>",
  *   "endpoint": "https://enquiry.indianrail.gov.in/crisns/AppServAnd",
  *   "version": 1
  * }
