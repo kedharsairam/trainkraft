@@ -19,6 +19,9 @@ All notable changes to TrainKraft are documented here.
 - Migrated kotlinOptions DSL to kotlin { compilerOptions { } }
 - OkHttp timeout API: TimeUnit → kotlin.time.Duration
 - .gradle/ cache untracked from git (was in repo despite .gitignore)
+- NTES remote key URL pointed to 'main' but repo uses 'master' (404, keys never loaded)
+- Empty key crash: validate keys before encryption, show user-friendly error
+- Pre-fetch NTES keys in Application.onCreate for faster first-use
 
 ## [0.2.0] - 2026-09-18
 
