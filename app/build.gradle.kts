@@ -76,6 +76,10 @@ dependencies {
     implementation("androidx.work:work-runtime-ktx:2.11.2")
     implementation("com.squareup.okhttp3:okhttp:5.5.0")
 
+    // Kraft Foundation — shared design system + core utilities.
+    implementation("com.kraft:kraft-ui")
+    implementation("com.kraft:kraft-core")
+
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.11.0")
     testImplementation("org.robolectric:robolectric:4.17")

@@ -7,7 +7,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
-import com.trainkraft.app.ui.theme.TrainKraftTheme
+import com.kraft.ui.theme.KraftTheme
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -15,7 +15,8 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            TrainKraftTheme {
+            // Kraft Foundation theme (dark-only for TrainKraft).
+            KraftTheme(darkTheme = true) {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     TrainKraftNavHost()
                 }
