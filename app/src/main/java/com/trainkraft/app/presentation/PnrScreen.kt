@@ -31,7 +31,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LargeTopAppBar
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -39,8 +38,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material3.rememberTopAppBarState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -61,8 +58,10 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.kraft.ui.components.KraftTopBar
+import com.kraft.ui.tokens.KraftRadius
+import com.kraft.ui.tokens.KraftSpacing
 import com.trainkraft.app.data.PnrApi
-import com.trainkraft.app.ui.theme.KraftSpacing
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -85,21 +84,13 @@ fun PnrScreen(
     var pnrInput by remember { mutableStateOf("") }
     var captchaInput by remember { mutableStateOf("") }
 
-    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior(
-        rememberTopAppBarState(),
-    )
-
     Scaffold(
         topBar = {
-            LargeTopAppBar(
-                title = {
-                    Text(
-                        text = when (step) {
-                            PnrViewModel.Step.INPUT -> "PNR Status"
-                            PnrViewModel.Step.CAPTCHA -> "Enter Captcha"
-                            PnrViewModel.Step.RESULT -> "PNR Result"
-                        },
-                    )
+            KraftTopBar(
+                title = when (step) {
+                    PnrViewModel.Step.INPUT -> "PNR Status"
+                    PnrViewModel.Step.CAPTCHA -> "Enter Captcha"
+                    PnrViewModel.Step.RESULT -> "PNR Result"
                 },
                 navigationIcon = {
                     IconButton(onClick = {
@@ -110,7 +101,6 @@ fun PnrScreen(
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 },
-                scrollBehavior = scrollBehavior,
             )
         },
         contentWindowInsets = WindowInsets.safeDrawing,
@@ -118,8 +108,7 @@ fun PnrScreen(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(paddingValues)
-                .nestedScroll(scrollBehavior.nestedScrollConnection),
+                .padding(paddingValues),
         ) {
             when (step) {
                 PnrViewModel.Step.INPUT -> PnrInputStep(
@@ -174,8 +163,8 @@ private fun PnrInputStep(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(KraftSpacing.spacing16),
-        verticalArrangement = Arrangement.spacedBy(KraftSpacing.spacing16),
+            .padding(KraftSpacing.Spacing16),
+        verticalArrangement = Arrangement.spacedBy(KraftSpacing.Spacing16),
     ) {
         Text(
             text = "Enter your 10-digit PNR number",
@@ -199,7 +188,7 @@ private fun PnrInputStep(
             ),
             keyboardActions = KeyboardActions(onGo = { onSubmit() }),
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp),
+            shape = RoundedCornerShape(KraftRadius.Standard),
             colors = OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = MaterialTheme.colorScheme.primary,
                 unfocusedBorderColor = MaterialTheme.colorScheme.outline,
@@ -220,7 +209,7 @@ private fun PnrInputStep(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(48.dp),
-            shape = RoundedCornerShape(12.dp),
+            shape = RoundedCornerShape(KraftRadius.Standard),
         ) {
             if (isLoading) {
                 CircularProgressIndicator(
@@ -255,8 +244,8 @@ private fun PnrCaptchaStep(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(KraftSpacing.spacing16),
-        verticalArrangement = Arrangement.spacedBy(KraftSpacing.spacing16),
+            .padding(KraftSpacing.Spacing16),
+        verticalArrangement = Arrangement.spacedBy(KraftSpacing.Spacing16),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text(
@@ -267,7 +256,7 @@ private fun PnrCaptchaStep(
 
         // Captcha image
         Surface(
-            shape = RoundedCornerShape(12.dp),
+            shape = RoundedCornerShape(KraftRadius.Standard),
             color = MaterialTheme.colorScheme.surfaceVariant,
             modifier = Modifier.fillMaxWidth(),
         ) {
@@ -278,7 +267,7 @@ private fun PnrCaptchaStep(
                     modifier = Modifier
                         .fillMaxWidth()
                         .heightIn(min = 80.dp)
-                        .padding(KraftSpacing.spacing16),
+                        .padding(KraftSpacing.Spacing16),
                 )
             } else if (isLoading) {
                 Box(
@@ -314,7 +303,7 @@ private fun PnrCaptchaStep(
             ),
             keyboardActions = KeyboardActions(onGo = { onSubmit() }),
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp),
+            shape = RoundedCornerShape(KraftRadius.Standard),
             colors = OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = MaterialTheme.colorScheme.primary,
                 unfocusedBorderColor = MaterialTheme.colorScheme.outline,
@@ -335,7 +324,7 @@ private fun PnrCaptchaStep(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(48.dp),
-            shape = RoundedCornerShape(12.dp),
+            shape = RoundedCornerShape(KraftRadius.Standard),
         ) {
             if (isLoading) {
                 CircularProgressIndicator(
@@ -366,8 +355,8 @@ private fun PnrResultStep(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(KraftSpacing.spacing16),
-        verticalArrangement = Arrangement.spacedBy(KraftSpacing.spacing12),
+            .padding(KraftSpacing.Spacing16),
+        verticalArrangement = Arrangement.spacedBy(KraftSpacing.Spacing12),
     ) {
         // Journey info card
         ResultSection("Journey Info") {
@@ -402,14 +391,14 @@ private fun PnrResultStep(
             }
         }
 
-        Spacer(Modifier.height(KraftSpacing.spacing8))
+        Spacer(Modifier.height(KraftSpacing.Spacing8))
 
         Button(
             onClick = onNewQuery,
             modifier = Modifier
                 .fillMaxWidth()
                 .height(48.dp),
-            shape = RoundedCornerShape(12.dp),
+            shape = RoundedCornerShape(KraftRadius.Standard),
         ) {
             Text("Check Another PNR")
         }
@@ -422,12 +411,12 @@ private fun ResultSection(
     content: @Composable () -> Unit,
 ) {
     Surface(
-        shape = RoundedCornerShape(12.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+        shape = RoundedCornerShape(KraftRadius.Standard),
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
         modifier = Modifier.fillMaxWidth(),
     ) {
         Column(
-            modifier = Modifier.padding(KraftSpacing.spacing16),
+            modifier = Modifier.padding(KraftSpacing.Spacing16),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             Text(

@@ -111,8 +111,12 @@ class BetweenViewModel(
         if (_fromStation.value != null && _toStation.value != null) search()
     }
 
-    private fun search() {
-        val from = _fromStation.value ?: return
+    /** Re-runs the current search — used by the error-state retry button. */
+    fun retry() {
+        if (_fromStation.value != null && _toStation.value != null) search()
+    }
+
+    private fun search() {        val from = _fromStation.value ?: return
         val to = _toStation.value ?: return
         viewModelScope.launch {
             _isLoading.value = true
