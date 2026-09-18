@@ -108,4 +108,17 @@ object NtesApi {
             keys,
         )
 
+    /**
+     * Average delay history per station for [trainNumber].
+     * Returns the raw decrypted JSON string.
+     */
+    suspend fun avgDelay(
+        trainNumber: String,
+        keys: NtesKeys = NtesKeys(),
+    ): Result<String> =
+        request(
+            "service=TrainRunningMob&subService=GetAvgDelayJson&trainNo=$trainNumber",
+            keys,
+        )
+
 }

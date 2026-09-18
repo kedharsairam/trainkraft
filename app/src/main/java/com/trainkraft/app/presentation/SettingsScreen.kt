@@ -58,7 +58,7 @@ private const val SOURCE_LABEL = "github.com/kedharsairam/trainkraft"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(onBack: () -> Unit) {
+fun SettingsScreen(onBack: () -> Unit, onPnrClick: () -> Unit = {}) {
     val context = LocalContext.current
     val appContext = remember(context) { context.applicationContext }
     val scope = rememberCoroutineScope()
@@ -71,6 +71,9 @@ fun SettingsScreen(onBack: () -> Unit) {
     val cacheHours by remember(appContext) {
         SettingsStore.cacheDurationHoursFlow(appContext)
     }.collectAsState(initial = SettingsStore.DEFAULT_CACHE_DURATION_HOURS)
+    val use24h by remember(appContext) {
+        SettingsStore.use24hFlow(appContext)
+    }.collectAsState(initial = SettingsStore.DEFAULT_USE_24H)
     val showCacheSheet = remember { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
@@ -176,6 +179,60 @@ fun SettingsScreen(onBack: () -> Unit) {
                         .clickable(role = Role.Button) {
                             haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                             showCacheSheet.value = true
+                        },
+                )
+                HorizontalDivider()
+            }
+            item(key = "use-24h") {
+                ListItem(
+                    headlineContent = { Text("24-hour time format") },
+                    supportingContent = {
+                        Text(
+                            text = if (use24h) "Show times as 16:55" else "Show times as 4:55 PM",
+                        )
+                    },
+                    trailingContent = {
+                        Switch(
+                            checked = use24h,
+                            onCheckedChange = { enabled ->
+                                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                scope.launch {
+                                    SettingsStore.setUse24h(appContext, enabled)
+                                }
+                            },
+                        )
+                    },
+                    colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.background),
+                    modifier = Modifier
+                        .heightIn(min = 56.dp)
+                        .clickable(role = Role.Switch) {
+                            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            scope.launch {
+                                SettingsStore.setUse24h(appContext, !use24h)
+                            }
+                        },
+                )
+                HorizontalDivider()
+            }
+
+            item(key = "pnr") {
+                ListItem(
+                    headlineContent = { Text("Check PNR Status") },
+                    supportingContent = { Text("Query Indian Railways for booking status") },
+                    trailingContent = {
+                        Icon(
+                            Icons.AutoMirrored.Filled.OpenInNew,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(20.dp),
+                        )
+                    },
+                    colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.background),
+                    modifier = Modifier
+                        .heightIn(min = 56.dp)
+                        .clickable {
+                            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            onPnrClick()
                         },
                 )
                 HorizontalDivider()

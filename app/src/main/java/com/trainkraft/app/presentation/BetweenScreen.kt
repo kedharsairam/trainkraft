@@ -53,6 +53,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.trainkraft.app.data.BetweenResult
+import com.trainkraft.app.data.GtfsTime
+import com.trainkraft.app.data.SettingsStore
 import com.trainkraft.app.ui.theme.KraftSpacing
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -62,8 +64,9 @@ fun BetweenScreen(
     onTrainClick: (String) -> Unit,
 ) {
     val context = LocalContext.current
+    val appContext = context.applicationContext
     val factory = remember {
-        BetweenViewModel.Factory(context.applicationContext as Application)
+        BetweenViewModel.Factory(appContext as Application)
     }
     val viewModel: BetweenViewModel = viewModel(factory = factory)
 
@@ -76,6 +79,10 @@ fun BetweenScreen(
     val results by viewModel.results.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val error by viewModel.error.collectAsState()
+
+    val use24h by remember(appContext) {
+        SettingsStore.use24hFlow(appContext)
+    }.collectAsState(initial = SettingsStore.DEFAULT_USE_24H)
 
     val haptics = LocalHapticFeedback.current
     val focusManager = LocalFocusManager.current
@@ -222,6 +229,7 @@ fun BetweenScreen(
             items(results, key = { "${it.trainNumber}-${it.fromCode}-${it.toCode}" }) { result ->
                 BetweenRow(
                     result = result,
+                    use24h = use24h,
                     onClick = {
                         haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                         onTrainClick(result.trainNumber)
@@ -347,13 +355,9 @@ private fun StationPicker(
 @Composable
 private fun BetweenRow(
     result: BetweenResult,
+    use24h: Boolean = true,
     onClick: () -> Unit,
 ) {
-    val depHour = result.depMin / 60
-    val depMin = result.depMin % 60
-    val arrHour = result.arrMin / 60
-    val arrMin = result.arrMin % 60
-
     // Duration calculation (handles day offset)
     val totalDepMin = result.depMin + result.depDayOffset * 1440
     val totalArrMin = result.arrMin + result.arrDayOffset * 1440
@@ -409,13 +413,13 @@ private fun BetweenRow(
         // Times
         Column(horizontalAlignment = Alignment.End) {
             Text(
-                text = String.format("%02d:%02d", depHour, depMin),
+                text = GtfsTime.format(result.depMin, result.depDayOffset, use24h),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
                 fontFamily = FontFamily.Monospace,
             )
             Text(
-                text = String.format("%02d:%02d", arrHour, arrMin),
+                text = GtfsTime.format(result.arrMin, result.arrDayOffset, use24h),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontFamily = FontFamily.Monospace,

@@ -1,10 +1,13 @@
 package com.trainkraft.app.presentation
 
 import android.app.Application
+import android.os.Build
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.trainkraft.app.LiveStatusNotificationWorker
 import com.trainkraft.app.data.NtesApi
 import com.trainkraft.app.data.NtesConfig
 import com.trainkraft.app.data.ScheduleStop
@@ -14,15 +17,14 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import org.json.JSONArray
+import org.json.JSONObject
 import java.text.SimpleDateFormat
+import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
 
-/**
- * Loads the full timetable ([ScheduleStop] list, ordered by seq) for one
- * train number, plus the [TrainEntity] header row.
- */
 class TrainDetailViewModel(
     application: Application,
     val trainNumber: String,
@@ -42,22 +44,53 @@ class TrainDetailViewModel(
     private val _dbError = MutableStateFlow<String?>(null)
     val dbError: StateFlow<String?> = _dbError.asStateFlow()
 
-    /** Raw NTES live-status JSON (v1: unparsed), null until first success. */
     private val _liveStatusJson = MutableStateFlow<String?>(null)
     val liveStatusJson: StateFlow<String?> = _liveStatusJson.asStateFlow()
 
-    /** Last live-status failure message, null when no error. */
     private val _liveError = MutableStateFlow<String?>(null)
     val liveError: StateFlow<String?> = _liveError.asStateFlow()
 
     private val _isLiveLoading = MutableStateFlow(false)
     val isLiveLoading: StateFlow<Boolean> = _isLiveLoading.asStateFlow()
 
+    // --- Date picker support ---
+    private val _selectedDate = MutableStateFlow<String?>(null)
+    val selectedDate: StateFlow<String?> = _selectedDate.asStateFlow()
+
+    // --- Average delay data ---
+    private val _avgDelayJson = MutableStateFlow<String?>(null)
+    val avgDelayJson: StateFlow<String?> = _avgDelayJson.asStateFlow()
+
+    private val _isAvgDelayLoading = MutableStateFlow(false)
+    val isAvgDelayLoading: StateFlow<Boolean> = _isAvgDelayLoading.asStateFlow()
+
+    // --- Notification tracking ---
+    private val _isTracking = MutableStateFlow(false)
+    val isTracking: StateFlow<Boolean> = _isTracking.asStateFlow()
+
+    fun hasNotificationPermission(): Boolean {
+        val ctx = getApplication<Application>()
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return true
+        return ContextCompat.checkSelfPermission(
+            ctx, android.Manifest.permission.POST_NOTIFICATIONS,
+        ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+    }
+
+    fun toggleTracking() {
+        val ctx = getApplication<Application>()
+        if (_isTracking.value) {
+            LiveStatusNotificationWorker.stop(ctx, trainNumber)
+            _isTracking.value = false
+        } else {
+            LiveStatusNotificationWorker.start(ctx, trainNumber)
+            _isTracking.value = true
+        }
+    }
+
     init {
         loadSchedule()
     }
 
-    /** Loads the offline schedule; re-called by Retry after a DB error. */
     fun loadSchedule() {
         viewModelScope.launch {
             _isLoading.value = true
@@ -71,7 +104,7 @@ class TrainDetailViewModel(
                 if (com.trainkraft.app.BuildConfig.DEBUG) {
                     android.util.Log.e("TrainDetailVM", "loadSchedule failed", e)
                 }
-                _dbError.value = mapTimetableError(e)
+                _dbError.value = "Timetable unavailable. Please try again."
             } finally {
                 _isLoading.value = false
             }
@@ -80,11 +113,14 @@ class TrainDetailViewModel(
 
     fun retry() = loadSchedule()
 
-    /**
-     * Fetches live running status for today (DD-MMM-YYYY). Failures surface
-     * via [liveError]; the offline [schedule] is always left untouched so it
-     * stays visible as the fallback layer.
-     */
+    fun setSelectedDate(date: String?) {
+        _selectedDate.value = date
+        // Re-fetch live status with the new date
+        _liveStatusJson.value = null
+        _liveError.value = null
+        refreshLiveStatus()
+    }
+
     fun refreshLiveStatus() {
         if (_isLiveLoading.value) return
         viewModelScope.launch {
@@ -99,7 +135,7 @@ class TrainDetailViewModel(
                 val dateFormat = SimpleDateFormat("dd-MMM-yyyy", Locale.ENGLISH).apply {
                     timeZone = TimeZone.getTimeZone("Asia/Kolkata")
                 }
-                val date = dateFormat.format(Date()).uppercase(Locale.ENGLISH)
+                val date = _selectedDate.value ?: dateFormat.format(Date()).uppercase(Locale.ENGLISH)
                 val keys = NtesConfig.getKeys(getApplication())
                 val apiResult = NtesApi.liveStatus(trimmed, date, keys)
                 apiResult
@@ -121,9 +157,43 @@ class TrainDetailViewModel(
         }
     }
 
-    private fun mapTimetableError(e: Exception): String {
-        // Never surface raw DB internals.
-        return "Timetable unavailable. Please try again."
+    fun loadAvgDelay() {
+        if (_isAvgDelayLoading.value) return
+        viewModelScope.launch {
+            _isAvgDelayLoading.value = true
+            try {
+                val keys = NtesConfig.getKeys(getApplication())
+                val result = NtesApi.avgDelay(trainNumber.trim(), keys)
+                result
+                    .onSuccess { _avgDelayJson.value = it }
+                    .onFailure { e ->
+                        if (com.trainkraft.app.BuildConfig.DEBUG) {
+                            android.util.Log.e("TrainDetailVM", "avgDelay failed", e)
+                        }
+                    }
+            } finally {
+                _isAvgDelayLoading.value = false
+            }
+        }
+    }
+
+    /** Build share text from train info + schedule. */
+    fun buildShareText(): String {
+        val t = _train.value
+        val stops = _schedule.value
+        val name = t?.name?.takeIf { it.isNotBlank() } ?: "Train $trainNumber"
+        return buildString {
+            appendLine("$name ($trainNumber)")
+            if (stops.isNotEmpty()) {
+                val first = stops.first()
+                val last = stops.last()
+                val depTime = first.depMin?.let { com.trainkraft.app.data.GtfsTime.format(it) } ?: "??:??"
+                val arrTime = last.arrMin?.let { com.trainkraft.app.data.GtfsTime.format(it) } ?: "??:??"
+                appendLine("${first.code} $depTime → ${last.code} $arrTime")
+                appendLine("${stops.size} stops")
+            }
+            appendLine("Source: TrainKraft")
+        }
     }
 
     private fun mapLiveError(e: Throwable): String {

@@ -33,4 +33,23 @@ object GtfsTime {
         val suffix = if (dayOffset > 0) " +$dayOffset d" else ""
         return "%02d:%02d%s".format(h, m, suffix)
     }
+
+    /** Format as 12-hour time with AM/PM. E.g. 1015 -> "4:55 PM". */
+    fun format12h(minutesInDay: Int, dayOffset: Int = 0): String {
+        val totalMin = minutesInDay.coerceIn(0, 1439)
+        val h24 = totalMin / 60
+        val m = totalMin % 60
+        val period = if (h24 < 12) "AM" else "PM"
+        val h12 = when {
+            h24 == 0 -> 12
+            h24 > 12 -> h24 - 12
+            else -> h24
+        }
+        val suffix = if (dayOffset > 0) " +$dayOffset d" else ""
+        return "%d:%02d %s%s".format(h12, m, period, suffix)
+    }
+
+    /** Format minutes using the user's 24h/12h preference. */
+    fun format(minutesInDay: Int, dayOffset: Int = 0, use24h: Boolean): String =
+        if (use24h) format(minutesInDay, dayOffset) else format12h(minutesInDay, dayOffset)
 }

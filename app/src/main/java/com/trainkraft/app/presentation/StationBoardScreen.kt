@@ -53,6 +53,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.trainkraft.app.data.GtfsTime
+import com.trainkraft.app.data.SettingsStore
 import com.trainkraft.app.data.StationDeparture
 import com.trainkraft.app.ui.theme.KraftSpacing
 import java.time.LocalDate
@@ -92,6 +93,11 @@ fun StationBoardScreen(
     val departures by viewModel.departures.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val dbError by viewModel.dbError.collectAsState()
+
+    val appContext = context.applicationContext
+    val use24h by remember(appContext) {
+        SettingsStore.use24hFlow(appContext)
+    }.collectAsState(initial = SettingsStore.DEFAULT_USE_24H)
 
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior(
         rememberTopAppBarState()
@@ -221,6 +227,7 @@ fun StationBoardScreen(
                     items(departures, key = { it.tripId }) { departure ->
                         DepartureRow(
                             departure = departure,
+                            use24h = use24h,
                             onClick = {
                                 haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                 onTrainClick(departure.trainNumber)
@@ -295,6 +302,7 @@ private fun StationBoardHeader(
 @Composable
 private fun DepartureRow(
     departure: StationDeparture,
+    use24h: Boolean = true,
     onClick: () -> Unit,
 ) {
     Row(
@@ -378,7 +386,7 @@ private fun DepartureRow(
         Spacer(Modifier.width(KraftSpacing.spacing12))
         Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(
-                text = departure.depMin?.let { GtfsTime.format(it, departure.dayOffset) } ?: "--:--",
+                text = departure.depMin?.let { GtfsTime.format(it, departure.dayOffset, use24h) } ?: "--:--",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
                 fontFamily = FontFamily.Monospace,
