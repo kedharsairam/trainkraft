@@ -11,6 +11,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONArray
 import org.json.JSONObject
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 
 /**
@@ -50,7 +51,7 @@ object PnrApi {
         val currentBerthNo: Int,
     )
 
-    private val cookieStore = mutableMapOf<String, List<Cookie>>()
+    private val cookieStore = ConcurrentHashMap<String, List<Cookie>>()
 
     private val cookieJar = object : CookieJar {
         override fun saveFromResponse(url: HttpUrl, cookies: List<Cookie>) {
@@ -101,14 +102,16 @@ object PnrApi {
                 .build()
 
             val response = client.newCall(captchaReq).execute()
-            if (response.isSuccessful) {
-                val bytes = response.body?.bytes()
-                if (bytes != null) {
-                    val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-                    if (bitmap != null) return@withContext Result.success(bitmap)
+            response.use {
+                if (it.isSuccessful) {
+                    val bytes = it.body?.bytes()
+                    if (bytes != null) {
+                        val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                        if (bitmap != null) return@withContext Result.success(bitmap)
+                    }
                 }
+                Result.failure(Exception("Failed to load captcha (${it.code})"))
             }
-            Result.failure(Exception("Failed to load captcha (${response.code})"))
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -128,14 +131,16 @@ object PnrApi {
                 .build()
 
             val response = client.newCall(req).execute()
-            if (response.isSuccessful) {
-                val bytes = response.body?.bytes()
-                if (bytes != null) {
-                    val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-                    if (bitmap != null) return@withContext Result.success(bitmap)
+            response.use {
+                if (it.isSuccessful) {
+                    val bytes = it.body?.bytes()
+                    if (bytes != null) {
+                        val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                        if (bitmap != null) return@withContext Result.success(bitmap)
+                    }
                 }
+                Result.failure(Exception("Failed to refresh captcha (${it.code})"))
             }
-            Result.failure(Exception("Failed to refresh captcha (${response.code})"))
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -168,76 +173,78 @@ object PnrApi {
                 .build()
 
             val response = client.newCall(req).execute()
-            if (!response.isSuccessful) {
-                return@withContext Result.failure(Exception("Server error (${response.code})"))
-            }
+            response.use {
+                if (!it.isSuccessful) {
+                    return@withContext Result.failure(Exception("Server error (${it.code})"))
+                }
 
-            val body = response.body?.string()
-            if (body.isNullOrBlank()) {
-                return@withContext Result.failure(Exception("Empty response from server"))
-            }
+                val body = it.body?.string()
+                if (body.isNullOrBlank()) {
+                    return@withContext Result.failure(Exception("Empty response from server"))
+                }
 
-            // Detect error conditions
-            if (body.contains("errorMessage")) {
-                val json = JSONObject(body)
-                val errMsg = json.optString("errorMessage", "")
-                when {
-                    errMsg.contains("Session out", true) -> {
-                        resetSession()
-                        return@withContext Result.failure(Exception("Session expired. Please try again."))
-                    }
-                    errMsg.contains("Captcha not matched", true) -> {
-                        return@withContext Result.failure(CaptchaMismatchException())
-                    }
-                    errMsg.contains("Flushed Pnr", true) -> {
-                        return@withContext Result.failure(Exception("PNR not found or not yet generated."))
-                    }
-                    errMsg.isNotBlank() -> {
-                        return@withContext Result.failure(Exception(errMsg))
+                // Detect error conditions
+                if (body.contains("errorMessage")) {
+                    val json = JSONObject(body)
+                    val errMsg = json.optString("errorMessage", "")
+                    when {
+                        errMsg.contains("Session out", true) -> {
+                            resetSession()
+                            return@withContext Result.failure(Exception("Session expired. Please try again."))
+                        }
+                        errMsg.contains("Captcha not matched", true) -> {
+                            return@withContext Result.failure(CaptchaMismatchException())
+                        }
+                        errMsg.contains("Flushed Pnr", true) -> {
+                            return@withContext Result.failure(Exception("PNR not found or not yet generated."))
+                        }
+                        errMsg.isNotBlank() -> {
+                            return@withContext Result.failure(Exception(errMsg))
+                        }
                     }
                 }
-            }
 
-            // Parse successful response
-            val json = JSONObject(body)
-            val pnr = json.optString("pnrNumber", "")
-            if (pnr.isBlank()) {
-                return@withContext Result.failure(Exception("Invalid response. Please try again."))
-            }
+                // Parse successful response
+                val json = JSONObject(body)
+                val pnr = json.optString("pnrNumber", "")
+                if (pnr.isBlank()) {
+                    return@withContext Result.failure(Exception("Invalid response. Please try again."))
+                }
 
-            val passengers = mutableListOf<PnrPassenger>()
-            val passengerArray = json.optJSONArray("passengerList") ?: JSONArray()
-            for (i in 0 until passengerArray.length()) {
-                val p = passengerArray.getJSONObject(i)
-                passengers.add(
-                    PnrPassenger(
-                        serialNumber = p.optInt("passengerSerialNumber", i + 1),
-                        bookingStatus = p.optString("bookingStatusDetails", ""),
-                        currentStatus = p.optString("currentStatusDetails", ""),
-                        bookingCoachId = p.optString("bookingCoachId", ""),
-                        currentCoachId = p.optString("currentCoachId", ""),
-                        bookingBerthNo = p.optInt("bookingBerthNo", 0),
-                        currentBerthNo = p.optInt("currentBerthNo", 0),
-                    ),
+                val passengers = mutableListOf<PnrPassenger>()
+                val passengerArray = json.optJSONArray("passengerList") ?: JSONArray()
+                for (i in 0 until passengerArray.length()) {
+                    val p = passengerArray.getJSONObject(i)
+                    passengers.add(
+                        PnrPassenger(
+                            serialNumber = p.optInt("passengerSerialNumber", i + 1),
+                            bookingStatus = p.optString("bookingStatusDetails", ""),
+                            currentStatus = p.optString("currentStatusDetails", ""),
+                            bookingCoachId = p.optString("bookingCoachId", ""),
+                            currentCoachId = p.optString("currentCoachId", ""),
+                            bookingBerthNo = p.optInt("bookingBerthNo", 0),
+                            currentBerthNo = p.optInt("currentBerthNo", 0),
+                        ),
+                    )
+                }
+
+                val result = PnrResult(
+                    pnrNumber = pnr,
+                    trainNumber = json.optString("trainNumber", ""),
+                    trainName = json.optString("trainName", ""),
+                    dateOfJourney = json.optString("dateOfJourney", ""),
+                    sourceStation = json.optString("sourceStation", ""),
+                    destinationStation = json.optString("destinationStation", ""),
+                    boardingPoint = json.optString("boardingPoint", ""),
+                    reservationUpto = json.optString("reservationUpto", ""),
+                    journeyClass = json.optString("journeyClass", ""),
+                    chartStatus = json.optString("chartStatus", ""),
+                    quota = json.optString("quota", ""),
+                    passengers = passengers,
+                    rawJson = body,
                 )
+                Result.success(result)
             }
-
-            val result = PnrResult(
-                pnrNumber = pnr,
-                trainNumber = json.optString("trainNumber", ""),
-                trainName = json.optString("trainName", ""),
-                dateOfJourney = json.optString("dateOfJourney", ""),
-                sourceStation = json.optString("sourceStation", ""),
-                destinationStation = json.optString("destinationStation", ""),
-                boardingPoint = json.optString("boardingPoint", ""),
-                reservationUpto = json.optString("reservationUpto", ""),
-                journeyClass = json.optString("journeyClass", ""),
-                chartStatus = json.optString("chartStatus", ""),
-                quota = json.optString("quota", ""),
-                passengers = passengers,
-                rawJson = body,
-            )
-            Result.success(result)
         } catch (e: Exception) {
             Result.failure(e)
         }

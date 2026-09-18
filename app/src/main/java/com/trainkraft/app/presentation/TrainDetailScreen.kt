@@ -45,6 +45,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberTopAppBarState
 import androidx.compose.runtime.Composable
@@ -125,14 +126,14 @@ fun TrainDetailScreen(
     val autoRefresh by remember(appContext) {
         SettingsStore.autoRefreshLiveFlow(appContext)
     }.collectAsState(initial = SettingsStore.DEFAULT_AUTO_REFRESH_LIVE)
-    androidx.compose.runtime.LaunchedEffect(autoRefresh, schedule) {
+    LaunchedEffect(autoRefresh, schedule) {
         if (autoRefresh && schedule.isNotEmpty() && liveStatusJson == null && liveError == null && !isLiveLoading) {
             viewModel.refreshLiveStatus()
         }
     }
 
     // Load average delay after live status loads
-    androidx.compose.runtime.LaunchedEffect(liveStatusJson) {
+    LaunchedEffect(liveStatusJson) {
         if (liveStatusJson != null && avgDelayJson == null && !isAvgDelayLoading) {
             viewModel.loadAvgDelay()
         }
@@ -180,7 +181,7 @@ fun TrainDetailScreen(
                         IconButton(onClick = {
                             haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                             if (!viewModel.hasNotificationPermission()) {
-                                notifPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+                                notifPermissionLauncher.launch("android.permission.POST_NOTIFICATIONS")
                             } else {
                                 viewModel.toggleTracking()
                             }

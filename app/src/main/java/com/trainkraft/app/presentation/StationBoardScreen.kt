@@ -376,9 +376,10 @@ private fun DepartureRow(
             )
             // If we have a destName distinct from trainName, show as second line on capable rows
             if (!departure.destName.isNullOrBlank() && !departure.destCode.isNullOrBlank()) {
-                val destLine = "To ${departure.destName} (${departure.destCode})"
+                val destName = departure.destName.orEmpty()
+                val destLine = "To $destName (${departure.destCode})"
                 // Only show when it adds info beyond trainName to avoid duplication
-                if (!departure.trainName.contains(departure.destName!!, ignoreCase = true)) {
+                if (!departure.trainName.contains(destName, ignoreCase = true)) {
                     Text(
                         text = destLine,
                         style = MaterialTheme.typography.labelSmall,

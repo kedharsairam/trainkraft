@@ -57,7 +57,7 @@ fun DayBadge(dayOffset: Int) {
 }
 
 @Composable
-fun TypeBadge(text: String, color: Color = MaterialTheme.colorScheme.primaryContainer, modifier: Modifier = Modifier) {
+fun TypeBadge(text: String, modifier: Modifier = Modifier, color: Color = MaterialTheme.colorScheme.primaryContainer) {
     Surface(
         shape = MaterialTheme.shapes.small,
         color = color,

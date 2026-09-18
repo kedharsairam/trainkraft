@@ -1,6 +1,8 @@
 package com.trainkraft.app.presentation
 
+import android.Manifest
 import android.app.Application
+import android.content.pm.PackageManager
 import android.os.Build
 import android.util.Log
 import androidx.core.content.ContextCompat
@@ -32,6 +34,10 @@ class TrainDetailViewModel(
     application: Application,
     val trainNumber: String,
 ) : AndroidViewModel(application) {
+
+    companion object {
+        private val TRAIN_NUMBER_REGEX = Regex("^[0-9]{4,6}$")
+    }
 
     private val dao = TrainDatabase.getInstance(application).trainDao()
 
@@ -78,8 +84,8 @@ class TrainDetailViewModel(
         val ctx = getApplication<Application>()
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return true
         return ContextCompat.checkSelfPermission(
-            ctx, android.Manifest.permission.POST_NOTIFICATIONS,
-        ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+            ctx, Manifest.permission.POST_NOTIFICATIONS,
+        ) == PackageManager.PERMISSION_GRANTED
     }
 
     fun toggleTracking() {
@@ -139,7 +145,7 @@ class TrainDetailViewModel(
             _liveError.value = null
             try {
                 val trimmed = trainNumber.trim()
-                if (!Regex("^[0-9]{4,6}$").matches(trimmed)) {
+                if (!TRAIN_NUMBER_REGEX.matches(trimmed)) {
                     _liveError.value = "Invalid train number"
                     return@launch
                 }
@@ -212,10 +218,6 @@ class TrainDetailViewModel(
         return when {
             e is java.io.IOException || "unable to resolve host" in msg || "timeout" in msg || "network" in msg ->
                 "Network unavailable. Check your connection and try again."
-            "server error" in msg || "http" in msg ->
-                "Live status unavailable. Please try again later."
-            msg.isBlank() -> "Live status unavailable. Please try again."
-            msg.length > 120 -> "Live status unavailable. Please try again."
             else -> "Live status unavailable. Please try again."
         }
     }

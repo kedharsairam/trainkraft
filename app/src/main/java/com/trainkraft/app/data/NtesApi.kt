@@ -1,5 +1,7 @@
 package com.trainkraft.app.data
 
+import android.util.Log
+import com.trainkraft.app.BuildConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
@@ -39,8 +41,8 @@ object NtesApi {
     private val ALERT_KEYS = arrayOf("AlertMsg", "alertMsg", "AlertMsgHindi", "alertMsgHindi")
 
     private inline fun debugLog(message: String) {
-        if (com.trainkraft.app.BuildConfig.DEBUG) {
-            android.util.Log.d(TAG, message)
+        if (BuildConfig.DEBUG) {
+            Log.d(TAG, message)
         }
     }
 
