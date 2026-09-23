@@ -20,7 +20,7 @@ import com.trainkraft.app.data.NtesApi
 import com.trainkraft.app.data.NtesConfig
 import com.trainkraft.app.data.NotificationPolicy
 import com.trainkraft.app.data.PollSnapshot
-import com.trainkraft.app.data.TrainDatabase
+import com.trainkraft.app.data.UserDatabase
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -34,10 +34,18 @@ import java.util.TimeZone
 import java.util.concurrent.TimeUnit
 
 /**
- * Background worker that polls NTES live status every 10 minutes and posts a
+ * Background worker that polls NTES live status every 15 minutes and posts a
  * notification ONLY on meaningful changes (see [NotificationPolicy]):
  * delay-category deterioration, big shift inside SEVERE, cancellation, or
  * journey completion. Silent polls just update the stored diff state.
+ *
+ * Cadence note: WorkManager enforces a 15-minute floor on periodic work
+ * ([PeriodicWorkRequest.MIN_PERIODIC_INTERVAL_MILLIS]) and clamps anything
+ * shorter (with a warning, not a crash) — so the schedule requests
+ * [POLL_INTERVAL_MINUTES] = 15 min explicitly, with a [POLL_FLEX_MINUTES] =
+ * 5 min flex window (the flex floor). Do not lower these: the OS will clamp
+ * them back and the "every poll" wording in [NotificationPolicy] /
+ * TrackedTrainEntity docs refers to this 15-minute cadence.
  *
  * Failure handling: transient network errors return [Result.retry] (backoff)
  * instead of being swallowed as success; a train that's no longer tracked
@@ -58,10 +66,20 @@ class LiveStatusNotificationWorker(
         private const val WORK_NAME_PREFIX = "live_status_"
         private const val TRAIN_NUMBER_KEY = "train_number"
 
+        /**
+         * Requested poll cadence. Must stay at/above WorkManager's 15-minute
+         * periodic floor (shorter values are silently clamped with a warning).
+         * Flex is the 5-minute flex floor: work runs in the trailing flex
+         * window of each 15-minute interval.
+         */
+        const val POLL_INTERVAL_MINUTES = 15L
+        const val POLL_FLEX_MINUTES = 5L
+
         fun start(context: Context, trainNumber: String) {
             createNotificationChannel(context)
             val request = PeriodicWorkRequestBuilder<LiveStatusNotificationWorker>(
-                10, TimeUnit.MINUTES,
+                POLL_INTERVAL_MINUTES, TimeUnit.MINUTES,
+                POLL_FLEX_MINUTES, TimeUnit.MINUTES,
             )
                 .setInputData(workDataOf(TRAIN_NUMBER_KEY to trainNumber))
                 .build()
@@ -80,15 +98,16 @@ class LiveStatusNotificationWorker(
 
         /**
          * Re-enqueues workers for every persisted tracked train. WorkManager
-         * normally survives process death, but restores from device backup
-         * (or a forced stop during an app update) can leave rows without
-         * scheduled work — idempotent thanks to KEEP, so always safe.
+         * normally survives process death, but a forced stop during an app
+         * update can leave rows without scheduled work — idempotent thanks
+         * to KEEP, so always safe. (Tracking rows live in user.db, which is
+         * excluded from backup, so restore drift cannot occur.)
          */
         fun restoreTracked(context: Context) {
             val appContext = context.applicationContext
             CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
                 try {
-                    val dao = TrainDatabase.getInstance(appContext).trackingDao()
+                    val dao = UserDatabase.getInstance(appContext).trackingDao()
                     dao.getAll().forEach { start(appContext, it.trainNumber) }
                 } catch (_: Exception) {
                     // DB may not be ready on very first launch — VM paths re-enqueue on toggle.
@@ -114,7 +133,7 @@ class LiveStatusNotificationWorker(
 
         if (!notificationsAllowed()) return Result.success()
 
-        val dao = TrainDatabase.getInstance(applicationContext).trackingDao()
+        val dao = UserDatabase.getInstance(applicationContext).trackingDao()
         val tracked = dao.get(trainNumber)
         if (tracked == null) {
             // Untracked elsewhere (completion delete, backup restore drift): silence.

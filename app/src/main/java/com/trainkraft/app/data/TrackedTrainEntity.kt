@@ -9,7 +9,7 @@ import androidx.room.PrimaryKey
  * Doubles as the worker's persisted poll state so that:
  *  - bell UI survives process restarts (was lost before — WorkManager-only),
  *  - the worker can notify only on *meaningful changes* (delay category,
- *    station change, completion) instead of on every 10-minute poll.
+ *    station change, completion) instead of on every 15-minute poll.
  */
 @Entity(tableName = "tracked_trains")
 data class TrackedTrainEntity(

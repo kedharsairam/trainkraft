@@ -85,8 +85,19 @@ object NtesApi {
 
                 // {"jsonIn": "<encrypted>"} → decrypt; anything else (e.g. a
                 // top-level {"AlertMsg": ...}) is used as-is, like Python's _decode.
+                //
+                // Key-invalidation policy: a decrypt exception proves the keys
+                // are wrong (e.g. server-side rotation), so the cached keys are
+                // marked suspect and the next getKeys() refetches remote (see
+                // NtesConfig.noteSuspectKeys). Transport errors (thrown above /
+                // below, outside decrypt) and ordinary AlertMsg content must
+                // NOT invalidate — refetching keys cannot fix them.
                 val decoded = if (data.has("jsonIn")) {
-                    NtesCrypto.decrypt(data.getString("jsonIn"), keys)
+                    val enc = data.getString("jsonIn")
+                    runCatching { NtesCrypto.decrypt(enc, keys) }.getOrElse { e ->
+                        NtesConfig.noteSuspectKeys()
+                        throw e
+                    }
                 } else {
                     text
                 }

@@ -48,6 +48,9 @@ object NtesConfig {
     /** Hardcoded fallback — always available, used when fetch/cache miss. */
     val FALLBACK = NtesKeys()
 
+    /** Bundled snapshot asset, second-to-last resort in [getKeys]. */
+    private const val SNAPSHOT_ASSET_NAME = "ntes-keys.json"
+
     @Volatile
     private var appContext: Context? = null
 
@@ -77,7 +80,23 @@ object NtesConfig {
         return if (context != null) getKeys(context) else fetchRemote() ?: FALLBACK
     }
 
-    /** Same as [getKeys] but with an explicit [Context] for the file cache. */
+    /**
+     * Read-through counterpart to [noteSuspectKeys]: after suspect-marking
+     * clears the caches, this runs the full refetch order instead of serving
+     * the known-bad keys.
+     *
+     * Returns effective keys, newest-first:
+     * memory (fresh) → file cache (fresh) → remote (caches on success) →
+     * stale file → bundled asset snapshot (`ntes-keys.json`, refreshed each
+     * release from the repo-root file; CI does not verify it) → [FALLBACK].
+     * Never throws.
+     *
+     * The snapshot is deliberately *not* written back to the memory/file
+     * caches: caching it as fresh would suppress remote retries for another
+     * 7 days, re-bricking live data after a rotation. Serving it statelessly
+     * means the next call retries remote first. A stale/invalid snapshot
+     * degrades to the pre-existing [FALLBACK] error path, never a new crash.
+     */
     suspend fun getKeys(context: Context): NtesKeys {
         val app = context.applicationContext
         if (appContext == null) appContext = app
@@ -113,7 +132,41 @@ object NtesConfig {
             return cached.first
         }
 
+        // Bundled snapshot: newer than the hardcoded fallback when the
+        // remote rotated but the app release predates it. Served statelessly
+        // (never cached) so the next call still retries remote first.
+        readAssetSnapshot(app)?.let { return it }
+
         return FALLBACK
+    }
+
+    /**
+     * Invalidates cached keys after a failure that proves them wrong.
+     *
+     * Why: keys are cached up to 7 days without retrying remote, so a
+     * server-side rotation bricks all live data until the TTL lapses. Clearing
+     * the memory + file caches forces the next [getKeys] through the remote
+     * refetch path immediately.
+     *
+     * Mechanism: nulls the in-memory entry and deletes the file cache;
+     * best-effort and never throws.
+     *
+     * Trigger policy (callers must obey): invoke ONLY on decrypt failures and
+     * explicit server key/auth rejections — i.e. evidence the *keys* are
+     * wrong. NEVER on transport errors (UnknownHost, timeouts, HTTP 5xx) and
+     * never on ordinary `AlertMsg` payload content, where refetching keys
+     * would just add load without helping. See [NtesApi]'s decrypt hook,
+     * which is currently the sole call site: no explicit key/auth rejection
+     * envelope is known from the server as of Sep 2026 (observed `AlertMsg`
+     * values are ordinary content such as "No Exceptional Details..."), so a
+     * decrypt exception is the key-rotation signal.
+     */
+    fun noteSuspectKeys() {
+        runCatching {
+            memoryCache = null
+            memoryCacheAt = 0L
+            appContext?.let { cacheFile(it).delete() }
+        }
     }
 
     /** Best-effort network fetch; null on any failure. */
@@ -148,6 +201,19 @@ object NtesConfig {
 
     private fun cacheFile(context: Context): File =
         File(context.filesDir, CACHE_FILE_NAME)
+
+    /**
+     * Bundled `ntes-keys.json` snapshot (shape of the repo-root file;
+     * `_header` metadata ignored by [parseKeys]). Null when missing or
+     * invalid — the caller then falls through to [FALLBACK]. Never throws.
+     */
+    private fun readAssetSnapshot(context: Context): NtesKeys? {
+        return runCatching {
+            context.assets.open(SNAPSHOT_ASSET_NAME).bufferedReader().use { reader ->
+                parseKeys(JSONObject(reader.readText()))
+            }
+        }.getOrNull()
+    }
 
     private fun readCache(context: Context): Pair<NtesKeys, Long>? {
         return runCatching {

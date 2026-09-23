@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.trainkraft.app.data.StationEntity
 import com.trainkraft.app.BuildConfig
 import com.trainkraft.app.data.TrainDatabase
+import com.trainkraft.app.data.UserDatabase
 import com.trainkraft.app.data.TrainEntity
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -25,7 +26,7 @@ import kotlinx.coroutines.launch
 class SearchViewModel(application: Application) : AndroidViewModel(application) {
 
     private val dao = TrainDatabase.getInstance(application).trainDao()
-    private val trackingDao = TrainDatabase.getInstance(application).trackingDao()
+    private val trackingDao = UserDatabase.getInstance(application).trackingDao()
 
     private val _query = MutableStateFlow("")
     val query: StateFlow<String> = _query.asStateFlow()
