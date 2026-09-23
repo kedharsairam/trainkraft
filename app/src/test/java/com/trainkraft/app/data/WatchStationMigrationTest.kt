@@ -17,7 +17,8 @@ import org.robolectric.RobolectricTestRunner
 
 /**
  * Verifies the user.db v1→v2 migration ([UserDatabase.MIGRATION_1_2]) for the
- * Phase C approach-alert columns.
+ * Phase C approach-alert columns, chained through v2→v3 and v3→v4 to the
+ * current version 4 (incl. the Go-live [liveTracking] flag default).
  *
  * WHY the columns: approach alerts need a TARGET station, and
  * [TrackedTrainEntity.lastStation] is the last SEEN station — encoding the
@@ -101,9 +102,13 @@ class WatchStationMigrationTest {
         createV1File(now)
 
         val db = Room.databaseBuilder(context, UserDatabase::class.java, dbName)
-            // v2→v3 (Phase D travel_fixes) joins the chain: the v1 file must
-            // migrate 1→2→3 to reach the current version 3.
-            .addMigrations(UserDatabase.MIGRATION_1_2, UserDatabase.MIGRATION_2_3)
+            // v2→v3 (travel_fixes) and v3→v4 (liveTracking flag) join the
+            // chain: the v1 file must migrate 1→2→3→4 to reach version 4.
+            .addMigrations(
+                UserDatabase.MIGRATION_1_2,
+                UserDatabase.MIGRATION_2_3,
+                UserDatabase.MIGRATION_3_4,
+            )
             .build()
         try {
             val tracked = db.trackingDao().get("12951")!!
@@ -114,6 +119,8 @@ class WatchStationMigrationTest {
             // New columns default null on migrated rows.
             assertNull(tracked.watchStationCode)
             assertNull(tracked.lastApproachFor)
+            // Go-live flag defaults false (baseline-only reading of old rows).
+            assertEquals(false, tracked.liveTracking)
 
             // Cache table untouched.
             assertEquals("{}", db.cacheDao().get("live:12951:x")?.json)
@@ -125,6 +132,10 @@ class WatchStationMigrationTest {
             assertEquals("BRC", db.trackingDao().get("12951")?.lastApproachFor)
             db.trackingDao().setWatchStation("12951", null)
             assertNull(db.trackingDao().get("12951")?.watchStationCode)
+            db.trackingDao().setLiveTracking("12951", true)
+            assertEquals(true, db.trackingDao().get("12951")?.liveTracking)
+            db.trackingDao().clearAllLiveTracking()
+            assertEquals(false, db.trackingDao().get("12951")?.liveTracking)
         } finally {
             db.close()
         }

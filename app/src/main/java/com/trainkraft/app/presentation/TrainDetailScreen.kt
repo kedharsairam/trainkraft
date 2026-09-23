@@ -180,7 +180,7 @@ fun TrainDetailScreen(
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
                 Lifecycle.Event.ON_RESUME -> {
-                    viewModel.refreshLiveServiceState(appContext)
+                    viewModel.refreshLiveServiceState()
                     viewModel.startLiveTicker(autoRefresh)
                 }
                 Lifecycle.Event.ON_PAUSE -> viewModel.stopLiveTicker()

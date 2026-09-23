@@ -192,10 +192,15 @@ class TrainDetailViewModel(
     init {
         // Bell state follows the persisted row: survives process death and
         // flips off automatically when the worker completes the journey.
+        // The Go-live pill follows the row's liveTracking flag (same
+        // subscription — stopping minute presence never unfollows).
         val td = trackingDao
         if (td != null) {
             viewModelScope.launch {
-                td.observe(trainNumber).collect { _isTracking.value = it != null }
+                td.observe(trainNumber).collect {
+                    _isTracking.value = it != null
+                    _isLiveServiceActive.value = it?.liveTracking == true
+                }
             }
         }
         loadSchedule()
@@ -308,17 +313,23 @@ class TrainDetailViewModel(
     // ------------------------------------------------- Phase C Go-live tier
 
     /**
-     * Refreshes [isLiveServiceActive] via ActivityManager (own service only).
-     * Called on screen resume; the service itself owns truth, this is display.
+     * Refreshes [isLiveServiceActive] from the persisted Go-live flag.
+     * Called on screen resume; the row is display truth (cold-start reset
+     * guarantees no stale flag without a running service — see AppContainer).
      */
-    fun refreshLiveServiceState(context: Context) {
-        _isLiveServiceActive.value = isServiceRunning(context, TrackingService::class.java)
+    fun refreshLiveServiceState() {
+        viewModelScope.launch {
+            _isLiveServiceActive.value = try {
+                trackingDao?.get(trainNumber.trim())?.liveTracking == true
+            } catch (_: Exception) {
+                _isLiveServiceActive.value
+            }
+        }
     }
 
     /**
-     * Go-live: ensures the tracked row exists (the service loop only polls
-     * tracked rows — without one it would exit immediately) then starts the
-     * minute-level foreground service. Bell state is left untouched otherwise.
+     * Go-live: ensures the tracked row exists, flags minute presence, then
+     * starts the foreground service. Bell state is left untouched otherwise.
      */
     fun startLiveTracking(context: Context) {
         viewModelScope.launch {
@@ -333,6 +344,7 @@ class TrainDetailViewModel(
                 LiveStatusNotificationWorker.start(context, trainNumber)
                 _isTracking.value = true
             }
+            trackingDao?.setLiveTracking(trainNumber, true)
             val intent = Intent(context, TrackingService::class.java)
                 .setAction(TrackingService.ACTION_START_TRACKING)
                 .putExtra(TrackingService.EXTRA_TRAIN_NUMBER, trainNumber)
@@ -815,9 +827,10 @@ enum class LiveTrackingUiState { OFF, BASELINE, LIVE }
 
 /**
  * Pure tier mapper (the only tested piece of Go-live state): no tracked row
- * → OFF; row without the minute service → BASELINE ("checks every 15
- * minutes"); service running → LIVE ("checks every minute · uses more
- * battery"). The service flag comes from [isServiceRunning].
+ * → OFF; row without the minute flag → BASELINE ("checks every 15
+ * minutes"); flag set → LIVE ("checks every minute · uses more
+ * battery"). The flag comes from the tracked row (persisted); cold-start
+ * reset guarantees it never names a dead service.
  */
 fun liveTrackingUiState(isTrackingRow: Boolean, serviceRunning: Boolean): LiveTrackingUiState =
     when {
