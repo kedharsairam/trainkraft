@@ -6,12 +6,32 @@ on:
   pull_request:
     branches: [master]
 
+# TrainKraft builds against a composite build: settings.gradle.kts does
+# includeBuild("../kraft-ui"), so the kraft-ui repo must exist as a SIBLING
+# directory. Both checkouts below therefore use explicit `path`s that place
+# trainkraft/ and kraft-ui/ side by side in the workspace.
+defaults:
+  run:
+    working-directory: trainkraft
+
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout TrainKraft
         uses: actions/checkout@v4
+        with:
+          path: trainkraft
+
+      # kraft-ui is a private repo; the default GITHUB_TOKEN is scoped to this
+      # repository only, so we authenticate with a read-only deploy key that
+      # can pull kraft-ui and nothing else.
+      - name: Checkout kraft-ui (composite-build sibling)
+        uses: actions/checkout@v4
+        with:
+          repository: kedharsairam/kraft-ui
+          path: kraft-ui
+          ssh-key: ${{ secrets.KRAFT_UI_DEPLOY_KEY }}
 
       - name: Set up JDK 21
         uses: actions/setup-java@v4
