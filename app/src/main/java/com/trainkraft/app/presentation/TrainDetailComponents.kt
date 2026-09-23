@@ -59,9 +59,11 @@ import com.kraft.ui.motion.rememberReduceMotion
 import com.kraft.ui.tokens.KraftColors
 import com.kraft.ui.tokens.KraftRadius
 import com.kraft.ui.tokens.KraftSpacing
+import com.trainkraft.app.data.DelayPriorEntity
 import com.trainkraft.app.data.GtfsTime
 import com.trainkraft.app.data.LiveStatusDto
 import com.trainkraft.app.data.LiveStopDto
+import com.trainkraft.app.data.NtesFormats
 import com.trainkraft.app.data.ScheduleStop
 import com.trainkraft.app.data.TrainInstanceDto
 
@@ -78,6 +80,7 @@ private fun HeadlineTone.toPill(): PillTone = when (this) {
  * Answer-first header: train number (tabular bold) + name, ONE headline
  * status line with its [StatusPill], then the honesty row ([FreshnessBadge] +
  * manual refresh). [headline] is null before live data arrives (offline mode).
+ * [seasonalNote] is the engine's fog-season note (muted chip, never Live).
  */
 @Composable
 internal fun AnswerHeader(
@@ -87,6 +90,7 @@ internal fun AnswerHeader(
     freshness: FreshnessState?,
     isLiveLoading: Boolean,
     onRefresh: () -> Unit,
+    seasonalNote: String? = null,
 ) {
     Column(
         modifier = Modifier
@@ -149,6 +153,9 @@ internal fun AnswerHeader(
                     }
                 }
             }
+        }
+        if (!seasonalNote.isNullOrBlank()) {
+            SeasonalNoteChip(note = seasonalNote)
         }
     }
 }
@@ -311,11 +318,19 @@ internal fun ExceptionBanner(message: String) {
  * Three-zone live timeline over [LiveStatusDto.stops]. Current position comes
  * from the ISA/ISD flags ([currentStopIndex]); every row carries a DIST right
  * rail and a spoken station + status description.
+ *
+ * Phase B: [predictionsByCode] (engine [StopPrediction] keyed by UPPERCASE
+ * station code) overrides future rows only via [shouldShowEnginePrediction] —
+ * server rendering otherwise; [priorsByCode] (pack rows, same keying) feeds
+ * the per-stop "typically" chips. Both default empty (pack absent).
  */
 @Composable
 internal fun LiveTimeline(
     stops: List<LiveStopDto>,
     onCoachClick: (LiveStopDto) -> Unit,
+    predictionsByCode: Map<String, StopPrediction> = emptyMap(),
+    priorsByCode: Map<String, DelayPriorEntity> = emptyMap(),
+    use24h: Boolean = true,
 ) {
     if (stops.isEmpty()) return
     val arrived = remember(stops) { stops.map { it.arrived } }
@@ -349,6 +364,9 @@ internal fun LiveTimeline(
                     isFirst = index == 0,
                     isLast = index == stops.lastIndex,
                     onCoachClick = onCoachClick,
+                    prediction = predictionsByCode[stop.code.uppercase()],
+                    prior = priorsByCode[stop.code.uppercase()],
+                    use24h = use24h,
                 )
             }
             if (stop.isReversalStop()) ReversalDividerRow()
@@ -619,8 +637,33 @@ private fun FutureStopRow(
     isFirst: Boolean,
     isLast: Boolean,
     onCoachClick: (LiveStopDto) -> Unit,
+    prediction: StopPrediction? = null,
+    prior: DelayPriorEntity? = null,
+    use24h: Boolean = true,
 ) {
     val pfSuffix = stop.platform.takeIf { it.isNotBlank() }?.let { " · PF$it*" } ?: ""
+    // Server delay behind today's main line: departure for intermediates and
+    // the source, arrival for the destination (mirrors the branches below).
+    val serverDelay: Int? = when {
+        isFirst -> stop.departureDelayMinutes()
+        isLast -> stop.arrivalDelayMinutes()
+        else -> stop.departureDelayMinutes() ?: stop.arrivalDelayMinutes()
+    }
+    // Engine override: confidence ≥ MED and ≥ 2 min off the server value, with
+    // a computable clock (sched base + predicted delay). Freshness honesty:
+    // the basis chip always sits adjacent when the engine drives the number —
+    // engine output NEVER renders as Live.
+    val showEngine = shouldShowEnginePrediction(prediction, serverDelay)
+    val schedBase: Int? = when {
+        isFirst -> NtesFormats.hhmmToMinutes(stop.scheduledDeparture)
+        isLast -> NtesFormats.hhmmToMinutes(stop.scheduledArrival)
+        else -> NtesFormats.hhmmToMinutes(stop.scheduledDeparture)
+            ?: NtesFormats.hhmmToMinutes(stop.scheduledArrival)
+    }
+    val engineMin: Int? =
+        if (showEngine && prediction != null) engineExpMinutes(schedBase, prediction.predictedDelayMin)
+        else null
+    val engineDrives = showEngine && engineMin != null && prediction != null
     // Departure prediction for intermediates, arrival for the destination;
     // "Starts" for a yet-to-depart source.
     val mainLine: String
@@ -628,25 +671,49 @@ private fun FutureStopRow(
     val delayKnown: Boolean
     when {
         isFirst -> {
-            mainLine = "Starts ${displayTimeOrDash(stop.departureUnavailable(), stop.scheduledDeparture)}"
-            delay = stop.departureDelayMinutes()
+            mainLine = if (engineDrives) {
+                "Exp. ${GtfsTime.format(engineMin, 0, use24h)}"
+            } else {
+                "Starts ${displayTimeOrDash(stop.departureUnavailable(), stop.scheduledDeparture)}"
+            }
+            delay = if (engineDrives) prediction.predictedDelayMin else stop.departureDelayMinutes()
             delayKnown = !stop.departureUnavailable()
         }
         isLast -> {
-            mainLine = "Arrives ${displayTimeOrDash(stop.arrivalUnavailable(), stop.estArrival.ifBlank { stop.scheduledArrival })}"
-            delay = stop.arrivalDelayMinutes()
+            mainLine = if (engineDrives) {
+                "Exp. ${GtfsTime.format(engineMin, 0, use24h)}"
+            } else {
+                "Arrives ${displayTimeOrDash(stop.arrivalUnavailable(), stop.estArrival.ifBlank { stop.scheduledArrival })}"
+            }
+            delay = if (engineDrives) prediction.predictedDelayMin else stop.arrivalDelayMinutes()
             delayKnown = !stop.arrivalUnavailable()
         }
         else -> {
-            mainLine = "Exp. ${displayTimeOrDash(stop.departureUnavailable(), stop.estDeparture.ifBlank { stop.scheduledDeparture })}"
-            delay = stop.departureDelayMinutes() ?: stop.arrivalDelayMinutes()
+            mainLine = if (engineDrives) {
+                "Exp. ${GtfsTime.format(engineMin, 0, use24h)}"
+            } else {
+                "Exp. ${displayTimeOrDash(stop.departureUnavailable(), stop.estDeparture.ifBlank { stop.scheduledDeparture })}"
+            }
+            delay = if (engineDrives) {
+                prediction.predictedDelayMin
+            } else {
+                stop.departureDelayMinutes() ?: stop.arrivalDelayMinutes()
+            }
             delayKnown = !stop.departureUnavailable()
         }
     }
+    val basisLabel: String? = if (engineDrives) basisChipLabel(prediction.basis) else null
+    // Pack prior for this stop: departure average mid-route, arrival average
+    // at the destination (the delay that actually matters there).
+    val priorLabel: String? = priorChipLabel(
+        prior?.let { if (isLast) it.arrAvgMin else it.depAvgMin },
+    )
     val spoken = buildString {
         append("${stop.code} ${stop.name}, upcoming. $mainLine. ")
+        if (basisLabel != null) append("Based on $basisLabel. ")
         if (delayKnown && delay != null) append(if (delay > 0) "$delay minutes late." else "On time.")
         else append("Time not available.")
+        if (priorLabel != null) append(" $priorLabel.")
         if (isLast) append(" Destination.")
     }
     TimelineRowShell(
@@ -692,9 +759,89 @@ private fun FutureStopRow(
                     DelayChip(delayMinutes = delay)
                 }
             }
+            if (basisLabel != null || priorLabel != null) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(KraftSpacing.Spacing4),
+                ) {
+                    if (basisLabel != null) {
+                        MutedChip(text = basisLabel)
+                    }
+                    if (priorLabel != null) {
+                        MutedChip(text = priorLabel)
+                    }
+                }
+            }
         }
         DistanceRail(stop.distance)
     }
+}
+
+/**
+ * Small muted chip for engine provenance (`"typical pattern"` / `"carried"` /
+ * `"timetable"`), pack priors (`"typically +10 here"`) and the fog seasonal
+ * note. Tonal surface, tabular, non-interactive — TalkBack reads it via the
+ * row's merged description.
+ */
+@Composable
+private fun MutedChip(text: String) {
+    Surface(
+        shape = RoundedCornerShape(KraftRadius.Pill),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+    ) {
+        Text(
+            text = text,
+            style = tabularFigures(MaterialTheme.typography.labelSmall),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(
+                horizontal = KraftSpacing.Spacing8,
+                vertical = KraftSpacing.Spacing4,
+            ),
+        )
+    }
+}
+
+/** Engine fog-season note under the answer header: muted chip, never Live. */
+@Composable
+private fun SeasonalNoteChip(note: String) {
+    MutedChip(text = note)
+}
+
+/**
+ * Engine position marker under journey progress: `"~205 km · between MTMI
+ * and BKL"` (tilde mandatory), tabular, muted. The caller hides the row when
+ * [label] is null (position unknown — never guessed).
+ */
+@Composable
+internal fun PositionMarkerRow(label: String) {
+    Text(
+        text = label,
+        style = tabularFigures(MaterialTheme.typography.labelMedium),
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(
+                horizontal = KraftSpacing.Spacing16,
+                vertical = KraftSpacing.Spacing4,
+            )
+            .semantics { contentDescription = label },
+    )
+}
+
+/** Pack-vintage caption under the timeline (`"delay data · Sep 2026"`); caller hides when null. */
+@Composable
+internal fun PackVintageCaption(caption: String) {
+    Text(
+        text = caption,
+        style = tabularFigures(MaterialTheme.typography.labelSmall),
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(
+            horizontal = KraftSpacing.Spacing16,
+            vertical = KraftSpacing.Spacing4,
+        ),
+    )
 }
 
 // -------------------------------------------------- non-stop disclosure

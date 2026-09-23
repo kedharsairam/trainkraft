@@ -171,4 +171,16 @@ interface PackDao {
      */
     @Query("SELECT `key`, `value` FROM `pack_meta`")
     suspend fun metaAll(): Map<@MapColumn("key") String, @MapColumn("value") String>
+
+    /**
+     * Single arrival/departure prior for one train at one station (Phase B
+     * between-stations "usually +N" badge: one DAO call per card, local DB).
+     * Null when the pack has no row — the UI shows no badge, never invents.
+     */
+    @Query(
+        "SELECT * FROM `delay_priors` " +
+            "WHERE `trainNumber` = :train AND `stationCode` = :station " +
+            "LIMIT 1"
+    )
+    suspend fun priorForStation(train: String, station: String): DelayPriorEntity?
 }

@@ -2,9 +2,14 @@ package com.trainkraft.app.di
 
 import android.content.Context
 import com.trainkraft.app.LiveStatusNotificationWorker
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import com.trainkraft.app.data.CacheDao
 import com.trainkraft.app.data.NtesConfig
 import com.trainkraft.app.data.NtesRepository
+import com.trainkraft.app.data.PackBootstrap
 import com.trainkraft.app.data.ResponseCache
 import com.trainkraft.app.data.SettingsStore
 import com.trainkraft.app.data.TrackingDao
@@ -30,11 +35,25 @@ class AppContainer(context: Context) {
 
     private val appContext: Context = context.applicationContext
 
+    private val bootstrapScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
     val database: TrainDatabase by lazy {
         // Touch first so the file (and Room's master table) already exists
         // when trains.db's 3 -> 4 migration ATTACHes it for the one-shot copy.
         userDatabase
-        TrainDatabase.getInstance(appContext)
+        val instance = TrainDatabase.getInstance(appContext)
+        // Pack bootstrap lives here (not in VMs): single process-once trigger
+        // at the earliest DB-touching point, off the Activity init path.
+        // Fire-and-forget: ensureImported is silent + idempotent, and the
+        // lazy initializer cannot suspend.
+        bootstrapScope.launch {
+            try {
+                PackBootstrap.ensureImported(appContext, instance)
+            } catch (_: Exception) {
+                // ensureImported never throws; belt-and-braces to protect init.
+            }
+        }
+        instance
     }
 
     /**
