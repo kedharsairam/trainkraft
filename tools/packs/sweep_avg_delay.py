@@ -7,15 +7,22 @@ for each train, maps per-station delay strings to minutes, and upserts rows
 into staging table `staging_priors`.
 
 POLITENESS CONTRACT (non-negotiable — this hits a public railway endpoint):
-  * 1.2 s base delay + up to 0.5 s jitter between calls (`--throttle` tunes
-    the base; jitter always applies).
+  * 2.0 s base delay + up to 0.5 s jitter between calls (`--throttle` tunes
+    the base; jitter always applies). Raised from 1.2 s on 2026-09-23 after
+    the server answered a request burst with connection resets (Errno 104).
   * HTTP 429 / 5xx -> sleep 60 s, retry the same train up to 3 times, then
     record it in `progress.json.failed` and move on (never abort the sweep).
+  * Transport failures (reset/timeout/DNS/SSL) get the SAME retry treatment
+    as 429/5xx (they are the server pushing back, not train-specific errors).
+    8 consecutive transport/429/5xx failures anywhere -> 5-minute cooldown,
+    then continue. Any successful response resets the streak.
+  * Fatal content (AlertMsg incl. "No Avg. Delay Record", bad shape, decrypt
+    failure) is NOT retried — the server answered, the train just has no data.
   * Run the FULL sweep off-peak IST (roughly 00:00-05:00 IST) to minimise
     load on the public endpoint. This script enforces nothing about wall-clock
     time — the operator picks the window. Stated here so the rule survives.
-  * Expected wall time for ~10.5k trains at default throttle ~= 4.5 h
-    (10.5k x ~1.5 s avg incl. request latency). The script prints a live ETA
+  * Expected wall time for ~10.5k trains at default throttle ~= 8 h
+    (10.5k x ~2.7 s avg incl. request latency). The script prints a live ETA
     from the remaining count.
 
 Resumability: `progress.json` holds `{"done": [...], "failed": [...]}`.
@@ -67,6 +74,12 @@ DEFAULT_ENDPOINT = "https://enquiry.indianrail.gov.in/crisns/AppServAnd"
 
 RETRY_SLEEP_S = 60
 MAX_RETRIES = 3
+
+# Circuit breaker for server pushback (resets/timeouts/429/5xx clustering):
+# N consecutive transport-side failures anywhere -> COOLDOWN_S pause.
+# Any successful server response resets the streak.
+CONSECUTIVE_COOLDOWN_N = 8
+COOLDOWN_S = 300
 
 STAGING_DDL = """
 CREATE TABLE IF NOT EXISTS staging_priors(
@@ -237,6 +250,7 @@ def run_sweep(args):
     failed = 0
     empty = 0
     req_times = []
+    consec_transport = 0  # circuit-breaker streak (see header contract)
     t_start = time.time()
     print("sweep: %d trains pending (of %d listed), throttle=%.1fs+jitter, "
           "staging=%s" % (total, len(trains), args.throttle, args.staging))
@@ -248,28 +262,50 @@ def run_sweep(args):
         t0 = time.time()
         decoded = None
         err = ""
-        try:
-            for attempt in range(MAX_RETRIES + 1):
-                try:
-                    decoded, status = fetch_train(
-                        train, opener, endpoint, key16, iv16, sckey)
-                except ValueError as e:
-                    err = str(e)  # fatal for this train (AlertMsg/shape/decrypt)
-                    decoded = None
-                    break
-                if decoded is not None:
-                    err = ""
-                    break
-                err = "HTTP %s" % status  # retryable 429/5xx
+        for attempt in range(MAX_RETRIES + 1):
+            try:
+                decoded, status = fetch_train(
+                    train, opener, endpoint, key16, iv16, sckey)
+            except ValueError as e:
+                err = str(e)  # fatal for this train (AlertMsg/shape/decrypt)
+                decoded = None
+                consec_transport = 0  # server answered: connectivity proven
+                break
+            except Exception as e:
+                # Transport failure (reset/timeout/DNS/SSL): the server
+                # pushing back, NOT a train-specific error — same backoff
+                # treatment as HTTP 429/5xx, then record and move on.
+                err = "%s: %s" % (type(e).__name__, e)
+                decoded = None
+                consec_transport += 1
+                if consec_transport >= CONSECUTIVE_COOLDOWN_N:
+                    print("sweep: %d consecutive transport failures -> "
+                          "cooling down %ds"
+                          % (consec_transport, COOLDOWN_S), flush=True)
+                    time.sleep(COOLDOWN_S)
+                    consec_transport = 0
                 if attempt < MAX_RETRIES:
-                    print("sweep: train %s HTTP %s -> sleep %ds (attempt %d/%d)"
-                          % (train, status, RETRY_SLEEP_S,
-                             attempt + 1, MAX_RETRIES),
-                          flush=True)
                     time.sleep(RETRY_SLEEP_S)
-        except Exception as e:  # transport/timeout etc. -> failed, move on
-            err = "%s: %s" % (type(e).__name__, e)
-            decoded = None
+                    continue
+                break
+            if decoded is not None:
+                err = ""
+                consec_transport = 0
+                break
+            err = "HTTP %s" % status  # retryable 429/5xx
+            consec_transport += 1
+            if consec_transport >= CONSECUTIVE_COOLDOWN_N:
+                print("sweep: %d consecutive transport failures -> "
+                      "cooling down %ds"
+                      % (consec_transport, COOLDOWN_S), flush=True)
+                time.sleep(COOLDOWN_S)
+                consec_transport = 0
+            if attempt < MAX_RETRIES:
+                print("sweep: train %s HTTP %s -> sleep %ds (attempt %d/%d)"
+                      % (train, status, RETRY_SLEEP_S,
+                         attempt + 1, MAX_RETRIES),
+                      flush=True)
+                time.sleep(RETRY_SLEEP_S)
         fetched_at = int(time.time())
         if decoded is not None:
             try:
@@ -339,7 +375,7 @@ def main(argv=None):
                    help="only first N trains of GTFS order (0=all)")
     p.add_argument("--trains", default="",
                    help="explicit comma list, e.g. 12952,12787 (for testing)")
-    p.add_argument("--throttle", type=float, default=1.2,
+    p.add_argument("--throttle", type=float, default=2.0,
                    help="base politeness delay in seconds (jitter +0-0.5s "
                         "always added)")
     p.add_argument("--resume", dest="resume", action="store_true",
