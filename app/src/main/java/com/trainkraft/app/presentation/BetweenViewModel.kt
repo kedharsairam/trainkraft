@@ -6,7 +6,11 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.trainkraft.app.TrainKraftApp
 import com.trainkraft.app.data.BetweenResult
+import com.trainkraft.app.data.BetweenTrainsDto
+import com.trainkraft.app.data.LoadResult
+import com.trainkraft.app.data.NtesFormats
 import com.trainkraft.app.data.StationEntity
 import com.trainkraft.app.BuildConfig
 import com.trainkraft.app.data.TrainDatabase
@@ -23,6 +27,7 @@ class BetweenViewModel(
 ) : AndroidViewModel(application) {
 
     private val dao = TrainDatabase.getInstance(application).trainDao()
+    private val repo = (application as? TrainKraftApp)?.container?.ntesRepository
 
     // Station pickers
     private val _fromQuery = MutableStateFlow("")
@@ -48,6 +53,12 @@ class BetweenViewModel(
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error.asStateFlow()
+
+    /** Which source produced [results] — drives the honesty badge. */
+    private val _source = MutableStateFlow(DataSource.OFFLINE)
+    val source: StateFlow<DataSource> = _source.asStateFlow()
+    private val _sourceAgeMs = MutableStateFlow<Long?>(null)
+    val sourceAgeMs: StateFlow<Long?> = _sourceAgeMs.asStateFlow()
 
     private val _uiState = MutableStateFlow<BetweenUiState>(BetweenUiState.Idle)
     val uiState: StateFlow<BetweenUiState> = _uiState.asStateFlow()
@@ -116,23 +127,57 @@ class BetweenViewModel(
         if (_fromStation.value != null && _toStation.value != null) search()
     }
 
-    private fun search() {        val from = _fromStation.value ?: return
+    private fun search() {
+        val from = _fromStation.value ?: return
         val to = _toStation.value ?: return
         viewModelScope.launch {
             _isLoading.value = true
             _error.value = null
             _uiState.value = BetweenUiState.Loading
             try {
-                val weekday = LocalDate.now().dayOfWeek.value - 1
-                val r = dao.getTrainsBetween(from.code, to.code, weekday)
-                _results.value = r
-                if (r.isEmpty()) {
-                    val msg = "No trains found between ${from.code} and ${to.code} today."
-                    _error.value = msg
-                    _uiState.value = BetweenUiState.Error(msg)
-                } else {
-                    _uiState.value = BetweenUiState.Results(r)
+                var rows: List<BetweenResult>? = null
+                var ds = DataSource.OFFLINE
+                var age: Long? = null
+                var liveFailed = false
+
+                // Live-first: strict NTES rows, cache fallback by repository.
+                when (val live = repo?.trainsBetween(from.code, to.code)
+                    ?: LoadResult.Failed("offline build")) {
+                    is LoadResult.Live -> {
+                        rows = mapLive(live.value, from, to)
+                        ds = DataSource.LIVE
+                    }
+                    is LoadResult.Offline -> {
+                        rows = mapLive(live.value, from, to)
+                        ds = DataSource.CACHED
+                        age = live.ageMs
+                    }
+                    is LoadResult.Failed -> liveFailed = true
                 }
+
+                if (rows.isNullOrEmpty()) {
+                    // Live unavailable or empty → offline weekday timetable.
+                    val weekday = LocalDate.now().dayOfWeek.value - 1
+                    val gtfs = dao.getTrainsBetween(from.code, to.code, weekday)
+                    if (gtfs.isNotEmpty()) {
+                        rows = gtfs
+                        ds = DataSource.OFFLINE
+                        age = null
+                    } else if (rows == null && liveFailed) {
+                        val msg =
+                            "Couldn't reach live data, and the offline timetable " +
+                                "has no trains between ${from.code} and ${to.code}."
+                        _error.value = msg
+                        _uiState.value = BetweenUiState.Error(msg)
+                        return@launch
+                    }
+                    // else: both sources genuinely empty → EmptyState below.
+                }
+
+                _results.value = rows.orEmpty()
+                _source.value = ds
+                _sourceAgeMs.value = age
+                _uiState.value = BetweenUiState.Results(_results.value)
             } catch (e: Exception) {
                 if (BuildConfig.DEBUG) {
                     Log.e("BetweenVM", "search failed", e)
@@ -145,6 +190,42 @@ class BetweenViewModel(
             }
         }
     }
+
+    /**
+     * Live NTES rows → presentation model.
+     *
+     * NTES wraps arrival at midnight, so travel time gives the exact day
+     * offset even for >24h legs (fallback: arr < dep ⇒ next day). Board and
+     * alight codes can differ from the query — NTES resolves station pairs
+     * regionally (NDLS→MMCT also matches NZM→BDTS rows). Dep day is assumed
+     * today (the common case for corridor searches).
+     */
+    private fun mapLive(
+        dto: BetweenTrainsDto,
+        from: StationEntity,
+        to: StationEntity,
+    ): List<BetweenResult> = dto.trains.mapNotNull { t ->
+        val dep = t.depMinutes() ?: return@mapNotNull null
+        val arr = t.arrMinutes() ?: return@mapNotNull null
+        val travelMin = NtesFormats.hhmmToMinutes(t.travelTime)
+        val arrDay = when {
+            travelMin != null -> (dep + travelMin) / 1440
+            arr < dep -> 1
+            else -> 0
+        }
+        BetweenResult(
+            trainNumber = t.trainNumber,
+            trainName = t.trainName,
+            fromCode = t.boardCode.ifBlank { from.code },
+            fromName = t.boardName.ifBlank { from.name },
+            depMin = dep,
+            depDayOffset = 0,
+            toCode = t.alightCode.ifBlank { to.code },
+            toName = t.alightName.ifBlank { to.name },
+            arrMin = arr,
+            arrDayOffset = arrDay,
+        )
+    }.sortedWith(compareBy({ it.depMin }, { it.trainNumber }))
 
     class Factory(
         private val application: Application,

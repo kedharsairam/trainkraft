@@ -1,6 +1,8 @@
 package com.trainkraft.app.presentation
 
+import android.graphics.Bitmap
 import androidx.test.core.app.ApplicationProvider
+import com.trainkraft.app.data.PnrApi
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -16,7 +18,32 @@ class PnrViewModelTest {
 
     @Before
     fun setup() {
-        viewModel = PnrViewModel(ApplicationProvider.getApplicationContext())
+        // Injected fakes: unit tests must never hit the real PNR endpoint.
+        viewModel = PnrViewModel(
+            ApplicationProvider.getApplicationContext(),
+            fetchCaptchaFn = { Result.success(Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)) },
+            refreshCaptchaFn = { Result.success(Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)) },
+            queryPnrFn = { _, _ ->
+                Result.success(
+                    PnrApi.PnrResult(
+                        pnrNumber = "1234567890",
+                        trainNumber = "12952",
+                        trainName = "MUMBAI RAJDHANI EXP",
+                        dateOfJourney = "23-09-2026",
+                        sourceStation = "NDLS",
+                        destinationStation = "MMCT",
+                        boardingPoint = "NDLS",
+                        reservationUpto = "MMCT",
+                        journeyClass = "3A",
+                        chartStatus = "CHART NOT PREPARED",
+                        quota = "GN",
+                        passengers = emptyList(),
+                        rawJson = "{}",
+                    )
+                )
+            },
+            resetSessionFn = {},
+        )
     }
 
     @Test
