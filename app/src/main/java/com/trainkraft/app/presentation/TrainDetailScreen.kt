@@ -135,6 +135,8 @@ fun TrainDetailScreen(
     val priors by viewModel.priors.collectAsState()
     val packVintage by viewModel.packVintage.collectAsState()
     val stopAlarms by viewModel.stopAlarms.collectAsState()
+    val persistedWatch by viewModel.persistedWatch.collectAsState()
+    val notifiedStation by viewModel.notifiedStation.collectAsState()
 
     // Notification permission launcher (Android 13+)
     val notifPermissionLauncher = rememberLauncherForActivityResult(
@@ -530,6 +532,12 @@ fun TrainDetailScreen(
                                     priorsByCode = priors,
                                     use24h = use24h,
                                     stopAlarmsByCode = stopAlarms,
+                                    // Persisted watch renders timeless-armed rows, but never
+                                    // under an active approach toggle (its switch owns
+                                    // that state — same rule as toggleStopAlarm).
+                                    persistedWatchCode = if (approachWatchEnabled) null
+                                    else persistedWatch,
+                                    notifiedStationCode = notifiedStation,
                                     onToggleStopAlarm = { stop ->
                                         haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                         viewModel.toggleStopAlarm(appContext, stop.code)
