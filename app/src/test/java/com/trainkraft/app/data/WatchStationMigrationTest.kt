@@ -101,7 +101,9 @@ class WatchStationMigrationTest {
         createV1File(now)
 
         val db = Room.databaseBuilder(context, UserDatabase::class.java, dbName)
-            .addMigrations(UserDatabase.MIGRATION_1_2)
+            // v2→v3 (Phase D travel_fixes) joins the chain: the v1 file must
+            // migrate 1→2→3 to reach the current version 3.
+            .addMigrations(UserDatabase.MIGRATION_1_2, UserDatabase.MIGRATION_2_3)
             .build()
         try {
             val tracked = db.trackingDao().get("12951")!!

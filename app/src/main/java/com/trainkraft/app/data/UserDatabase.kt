@@ -20,7 +20,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
  * `backup_rules.xml` and `data_extraction_rules.xml` exclude `user.db`, so
  * this file never leaves the device.
  *
- * Mechanism: plain Room database, version 1, no asset, no migrations yet.
+ * Mechanism: plain Room database, version 3, no asset; migrations
+ * [MIGRATION_1_2] (Phase C alarm columns) and [MIGRATION_2_3] (Phase D
+ * travel-fix trace table).
  * First-launch seeding from a pre-split `trains.db` (v3) is performed by
  * [TrainDatabase.MIGRATION_3_4], which ATTACHes this file's canonical path
  * ([DB_NAME] under the app database directory) and copies rows before
@@ -37,14 +39,16 @@ import androidx.sqlite.db.SupportSQLiteDatabase
     entities = [
         TrackedTrainEntity::class,
         CachedResponseEntity::class,
+        TravelFixEntity::class,
     ],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 abstract class UserDatabase : RoomDatabase() {
 
     abstract fun trackingDao(): TrackingDao
     abstract fun cacheDao(): CacheDao
+    abstract fun travelTraceDao(): TravelTraceDao
 
     companion object {
         const val DB_NAME = "user.db"
@@ -61,6 +65,37 @@ abstract class UserDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * v2 -> v3: Phase D travel-mode GPS trace table (`travel_fixes`).
+         * Fresh CREATE TABLE matching [TravelFixEntity] DDL exactly
+         * (composite (`trainNumber`, `tsEpochMs`) primary key — no
+         * autoincrement/`sqlite_sequence` — plus the two indices); no
+         * backfill — a new table starts empty, which is the correct default.
+         * Existing `tracked_trains` / `cached_responses` rows are untouched.
+         */
+        internal val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `travel_fixes` (" +
+                        "`trainNumber` TEXT NOT NULL, " +
+                        "`tsEpochMs` INTEGER NOT NULL, " +
+                        "`lat` REAL NOT NULL, " +
+                        "`lon` REAL NOT NULL, " +
+                        "`speedKmh` REAL NOT NULL, " +
+                        "`accuracyM` REAL NOT NULL, " +
+                        "PRIMARY KEY(`trainNumber`, `tsEpochMs`))"
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_travel_fixes_trainNumber` " +
+                        "ON `travel_fixes` (`trainNumber`)"
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_travel_fixes_tsEpochMs` " +
+                        "ON `travel_fixes` (`tsEpochMs`)"
+                )
+            }
+        }
+
         @Volatile
         private var INSTANCE: UserDatabase? = null
 
@@ -70,7 +105,7 @@ abstract class UserDatabase : RoomDatabase() {
                     context.applicationContext,
                     UserDatabase::class.java,
                     DB_NAME
-                ).addMigrations(MIGRATION_1_2).build()
+                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3).build()
                 INSTANCE = instance
                 instance
             }

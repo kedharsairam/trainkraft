@@ -71,6 +71,17 @@
             android:foregroundServiceType="dataSync"
             android:exported="false" />
 
+        <!-- Phase D — travel-mode GPS (on-device fixes, foreground-only).
+             Distinct service from TrackingService (which never touches GPS):
+             this one runs with foregroundServiceType="location" and holds a
+             10 s HIGH_ACCURACY fused request while a travel session is
+             active. No background GPS ever (no background-location
+             permission declared by design). -->
+        <service
+            android:name=".TravelService"
+            android:foregroundServiceType="location"
+            android:exported="false" />
+
         <receiver
             android:name=".AlarmReceiver"
             android:exported="false">
