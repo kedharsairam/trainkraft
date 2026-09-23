@@ -1,11 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 <data-extraction-rules>
-    <!-- Train schedules are public data: allow DB backup. Only exclude user prefs/favorites. -->
+    <!-- trains.db is static GTFS (re-seeds from the bundled asset via
+         createFromAsset); user.db holds followed trains + offline cache and
+         must never leave the device. Only user prefs/favorites exclusions
+         predate the split. -->
     <cloud-backup>
+        <exclude domain="database" path="trains.db" />
+        <exclude domain="database" path="user.db" />
         <exclude domain="sharedpref" path="trainkraft_settings" />
         <exclude domain="sharedpref" path="trainkraft_favorites" />
     </cloud-backup>
     <device-transfer>
+        <exclude domain="database" path="trains.db" />
+        <exclude domain="database" path="user.db" />
         <exclude domain="sharedpref" path="trainkraft_settings" />
         <exclude domain="sharedpref" path="trainkraft_favorites" />
     </device-transfer>

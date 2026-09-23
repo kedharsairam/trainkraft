@@ -3,7 +3,39 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- API 33+ (Tiramisu) runtime permission; auto-granted on install below 33. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- Phase D — travel-mode GPS (foreground-only).
+         Runtime permissions since API 23; request both together and treat
+         FINE as the precise grant (~API 31+ splits precise vs approximate).
+         Background location (ACCESS_BACKGROUND_LOCATION) is deliberately NOT
+         requested: travel mode only needs GPS while the tracking UI / service
+         is in the foreground, so we sidestep the background grant (which on
+         API 30+ is settings-only and triggers extra Play review) entirely. -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+
+    <!-- Phase C — tracking foreground service.
+         FOREGROUND_SERVICE is a normal (install-time) permission since API 28;
+         FOREGROUND_SERVICE_LOCATION (API 34+, UpsideDownCake) is the matching
+         type-specific declaration required when the service runs with
+         foregroundServiceType="location". NOTE: the <service> entries
+         themselves arrive with Phase C — permissions land here first. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+
+    <!-- Phase C — station/destination alarms.
+         Special app-access since API 31: pre-31 it is granted at install, on
+         API 31+ gate every exact-alarm call on
+         AlarmManager.canScheduleExactAlarms() (user grants via Settings) and
+         fall back to inexact alarms when denied.
+         Deliberately NOT declared: USE_EXACT_ALARM (signature-level, not
+         grantable to third-party apps) and REQUEST_IGNORE_BATTERY_OPTIMIZATIONS
+         (no manifest entry — Phase C requests the ColorOS/OEM exemption via a
+         Settings intent instead). Background location is likewise out of scope
+         (see travel-mode note above). -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
 
     <application
         android:name=".TrainKraftApp"

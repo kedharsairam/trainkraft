@@ -29,7 +29,7 @@ data class PollSnapshot(
  *  - Notify only on *meaningful change*: delay category deterioration, a big
  *    shift inside SEVERE (≥15 min), cancellation, or journey completion.
  *  - Station-to-station movement is NOT a trigger (the old worker notified on
- *    every 10-minute poll because "has a station" is almost always true).
+ *    every 15-minute poll because "has a station" is almost always true).
  *  - Delay buckets mirror the UI: ≤5 min on-time, 6–15 moderate, >15 severe.
  */
 object NotificationPolicy {

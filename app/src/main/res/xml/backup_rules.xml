@@ -1,7 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <full-backup-content>
-    <!-- Public timetable data (trains.db) + tracked trains back up;
-         user settings and key material stay local. -->
+    <!-- trains.db is static GTFS: excluded (~20MB cloud quota saved) and
+         re-seeded from the bundled asset via createFromAsset on restore.
+         user.db holds followed trains + offline cache: excluded so train
+         history never leaves the device. User settings and key material
+         stay local as before. -->
+    <exclude domain="database" path="trains.db" />
+    <exclude domain="database" path="user.db" />
     <exclude domain="sharedpref" path="trainkraft_settings" />
     <exclude domain="file" path="trainkraft_settings.preferences_pb" />
     <exclude domain="file" path="ntes-keys-cache.json" />
