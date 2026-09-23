@@ -59,6 +59,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -115,6 +117,7 @@ fun BetweenScreen(
     val selectedDate by viewModel.selectedDate.collectAsState()
     val typeFilter by viewModel.typeFilter.collectAsState()
     val sort by viewModel.sort.collectAsState()
+    val usualDelays by viewModel.usualDelays.collectAsState()
 
     val use24h by remember(appContext) {
         SettingsStore.use24hFlow(appContext)
@@ -304,6 +307,7 @@ fun BetweenScreen(
                             row = row,
                             selectedDate = selectedDate,
                             use24h = use24h,
+                            usualDelayMin = usualDelays[row.trainNumber],
                             onTrainClick = {
                                 haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                 focusManager.clearFocus()
@@ -517,6 +521,7 @@ private fun BetweenTrainCard(
     row: BetweenUiRow,
     selectedDate: LocalDate,
     use24h: Boolean = true,
+    usualDelayMin: Int? = null,
     onTrainClick: () -> Unit,
 ) {
     val durationMin =
@@ -579,6 +584,14 @@ private fun BetweenTrainCard(
             if (row.typeDesc.isNotBlank()) {
                 TypeBadge(text = row.typeDesc)
             }
+        }
+
+        // Typical-delay badge from the pack arrival prior at the destination
+        // stop ("usually +25" amber / "usually on time" green); missing → no
+        // badge, never invented.
+        val usualLabel = usualDelayBadgeLabel(usualDelayMin)
+        if (usualLabel != null && usualDelayMin != null) {
+            UsualDelayBadge(arrAvgMin = usualDelayMin, label = usualLabel)
         }
 
         // Line 2 (hero): dep — duration — arr.
@@ -722,6 +735,43 @@ private fun BetweenTrainCard(
                 Text("Track")
             }
         }
+    }
+}
+
+/**
+ * Typical-delay badge: `"usually +25"` amber / `"usually on time"` green.
+ * Muted tonal chip, tabular figures, non-interactive with a full spoken
+ * description (pack provenance — never Live).
+ */
+@Composable
+private fun UsualDelayBadge(arrAvgMin: Int, label: String) {
+    val accent = if (arrAvgMin <= 0) KraftColors.AuroraGreen else KraftColors.AuroraOrange
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .clip(RoundedCornerShape(KraftRadius.Pill))
+            .background(accent.copy(alpha = 0.12f))
+            .semantics { contentDescription = "Typically $label at destination, 7-day pack average" }
+            .padding(
+                horizontal = KraftSpacing.Spacing8,
+                vertical = KraftSpacing.Spacing4,
+            ),
+    ) {
+        Box(
+            modifier = Modifier
+                .size(6.dp)
+                .clip(CircleShape)
+                .background(accent),
+        )
+        Spacer(Modifier.width(6.dp))
+        Text(
+            text = label,
+            style = tabularFigures(MaterialTheme.typography.labelMedium),
+            color = accent,
+            fontWeight = FontWeight.Medium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 
