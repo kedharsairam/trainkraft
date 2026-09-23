@@ -27,6 +27,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.NotificationsActive
+import androidx.compose.material.icons.filled.NotificationsNone
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.SwapVert
 import androidx.compose.material3.CircularProgressIndicator
@@ -323,6 +325,10 @@ internal fun ExceptionBanner(message: String) {
  * station code) overrides future rows only via [shouldShowEnginePrediction] —
  * server rendering otherwise; [priorsByCode] (pack rows, same keying) feeds
  * the per-stop "typically" chips. Both default empty (pack absent).
+ *
+ * Phase E: [stopAlarmsByCode] (UPPERCASE code → armed trigger, same keying)
+ * adds a per-stop alarm affordance to every future row; [onToggleStopAlarm]
+ * arms/disarms that stop. Both default to none (caller without VM state).
  */
 @Composable
 internal fun LiveTimeline(
@@ -331,6 +337,8 @@ internal fun LiveTimeline(
     predictionsByCode: Map<String, StopPrediction> = emptyMap(),
     priorsByCode: Map<String, DelayPriorEntity> = emptyMap(),
     use24h: Boolean = true,
+    stopAlarmsByCode: Map<String, Long> = emptyMap(),
+    onToggleStopAlarm: (LiveStopDto) -> Unit = {},
 ) {
     if (stops.isEmpty()) return
     val arrived = remember(stops) { stops.map { it.arrived } }
@@ -367,6 +375,8 @@ internal fun LiveTimeline(
                     prediction = predictionsByCode[stop.code.uppercase()],
                     prior = priorsByCode[stop.code.uppercase()],
                     use24h = use24h,
+                    alarmTriggerAt = stopAlarmsByCode[stop.code.uppercase()],
+                    onToggleAlarm = { onToggleStopAlarm(stop) },
                 )
             }
             if (stop.isReversalStop()) ReversalDividerRow()
@@ -640,6 +650,8 @@ private fun FutureStopRow(
     prediction: StopPrediction? = null,
     prior: DelayPriorEntity? = null,
     use24h: Boolean = true,
+    alarmTriggerAt: Long? = null,
+    onToggleAlarm: (() -> Unit)? = null,
 ) {
     val pfSuffix = stop.platform.takeIf { it.isNotBlank() }?.let { " · PF$it*" } ?: ""
     // Server delay behind today's main line: departure for intermediates and
@@ -772,8 +784,69 @@ private fun FutureStopRow(
                     }
                 }
             }
+            if (onToggleAlarm != null) {
+                StopAlarmRow(
+                    code = stop.code,
+                    alarmTriggerAt = alarmTriggerAt,
+                    onToggleAlarm = onToggleAlarm,
+                )
+            }
         }
         DistanceRail(stop.distance)
+    }
+}
+
+/**
+ * Phase E per-stop alarm affordance: 48dp bell button on every future row
+ * ("Alert 10 minutes before CODE"; filled + "Alarm set · clock" + Cancel
+ * once armed — tap toggles). Tabular, haptic-free here (caller owns
+ * haptics, like every other row action); TalkBack reads it via the row's
+ * merged description.
+ */
+@Composable
+private fun StopAlarmRow(
+    code: String,
+    alarmTriggerAt: Long?,
+    onToggleAlarm: () -> Unit,
+) {
+    val scheduled = alarmTriggerAt != null
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(KraftSpacing.Spacing8),
+    ) {
+        IconButton(
+            onClick = onToggleAlarm,
+            modifier = Modifier.size(48.dp),
+        ) {
+            Icon(
+                if (scheduled) Icons.Filled.NotificationsActive else Icons.Filled.NotificationsNone,
+                contentDescription = if (scheduled) "Cancel alert for $code"
+                else "Alert 10 minutes before $code",
+                tint = if (scheduled) MaterialTheme.colorScheme.primary
+                else MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        if (scheduled) {
+            Text(
+                text = "Alarm set · ${clockLabel(alarmTriggerAt)}",
+                style = tabularFigures(MaterialTheme.typography.bodySmall),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.weight(1f),
+            )
+            androidx.compose.material3.TextButton(
+                onClick = onToggleAlarm,
+                modifier = Modifier.heightIn(min = 48.dp),
+            ) {
+                Text("Cancel")
+            }
+        } else {
+            Text(
+                text = "Alert 10 min before",
+                style = tabularFigures(MaterialTheme.typography.bodySmall),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     }
 }
 
@@ -1288,7 +1361,7 @@ internal fun TravelModeEntry(onBoard: () -> Unit) {
 /**
  * Alarms section: destination-arrival segmented control (15/30/60 min lead)
  * + next-stop approach toggle (10-min lead) + scheduled row with Cancel.
- * Arbitrary-stop alarms are Phase E — the footnote says so literally.
+ * Arbitrary-stop alarms live on the future timeline rows (Phase E).
  */
 @Composable
 internal fun AlarmSection(
@@ -1378,11 +1451,6 @@ internal fun AlarmSection(
                 enabled = !nextStopCode.isNullOrBlank(),
             )
         }
-        Text(
-            text = "Alarms for other stops come later.",
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
     }
 }
 

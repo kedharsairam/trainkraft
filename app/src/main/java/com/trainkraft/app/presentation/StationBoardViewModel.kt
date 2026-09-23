@@ -47,6 +47,7 @@ class StationBoardViewModel(
     }
 
     private val dao = TrainDatabase.getInstance(application).trainDao()
+    private val packDao = TrainDatabase.getInstance(application).packDao()
     private val repo = (application as? TrainKraftApp)?.container?.ntesRepository
 
     private val _station = MutableStateFlow<StationEntity?>(null)
@@ -69,6 +70,16 @@ class StationBoardViewModel(
 
     private val _uiState = MutableStateFlow<StationBoardUiState>(StationBoardUiState.Loading)
     val uiState: StateFlow<StationBoardUiState> = _uiState.asStateFlow()
+
+    /**
+     * Typical arrival delay at THIS station, per train number (pack
+     * `arrAvgMin`; absent key = no pack row = no badge, never invented).
+     * Loaded once per board load — one local-DB [PackDao.priorsForTrain] call
+     * per distinct train, mirroring BetweenViewModel's badge batch; the whole
+     * batch silent-fails to an empty map.
+     */
+    private val _usualDelays = MutableStateFlow<Map<String, Int>>(emptyMap())
+    val usualDelays: StateFlow<Map<String, Int>> = _usualDelays.asStateFlow()
 
     private val todayStamp = SimpleDateFormat("d-MMM", Locale.ENGLISH).format(Date())
 
@@ -120,6 +131,7 @@ class StationBoardViewModel(
                 _source.value = ds
                 _sourceAgeMs.value = age
                 _uiState.value = StationBoardUiState.Loaded(station, rows)
+                loadUsualDelays(rows, stationCode)
             } catch (e: Exception) {
                 if (BuildConfig.DEBUG) {
                     Log.e("StationBoardVM", "loadBoard failed", e)
@@ -134,6 +146,33 @@ class StationBoardViewModel(
     }
 
     fun retry() = loadBoard()
+
+    /**
+     * Batch-loads arrival priors at this station for one board payload: one
+     * [PackDao.priorsForTrain] call per distinct train (local DB), mapped to
+     * this station via [usualDelayForStation]. Silent-fails to an empty map;
+     * a missing row simply yields no badge for that departure.
+     */
+    private fun loadUsualDelays(rows: List<BoardRow>, boardStationCode: String) {
+        _usualDelays.value = emptyMap()
+        if (rows.isEmpty()) return
+        viewModelScope.launch {
+            try {
+                val map = mutableMapOf<String, Int>()
+                for (number in rows.map { it.trainNumber }.distinct()) {
+                    val priors = packDao.priorsForTrain(number)
+                    val usual = usualDelayForStation(priors, boardStationCode)
+                    if (usual != null) map[number] = usual
+                }
+                _usualDelays.value = map
+            } catch (e: Exception) {
+                if (BuildConfig.DEBUG) {
+                    Log.e("StationBoardVM", "usual delays failed: ${e.message}")
+                }
+                _usualDelays.value = emptyMap()
+            }
+        }
+    }
 
     /**
      * GTFS full-day rows, enriched/extended by the live NTES window: matching

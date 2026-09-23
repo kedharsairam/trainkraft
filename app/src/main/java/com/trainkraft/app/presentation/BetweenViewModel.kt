@@ -395,14 +395,5 @@ fun List<BetweenUiRow>.toBetweenResults(): List<BetweenResult> = map { row ->
         arrDayOffset = row.arrDayOffset,
     )
 }
-
-/**
- * Typical-delay badge label from the pack arrival prior at the destination
- * stop. Null when [arrAvgMin] is null (no pack row → no badge, never
- * invented); `<= 0` means typically on time. Pure — unit-tested.
- */
-fun usualDelayBadgeLabel(arrAvgMin: Int?): String? = when {
-    arrAvgMin == null -> null
-    arrAvgMin <= 0 -> "usually on time"
-    else -> "usually +$arrAvgMin"
-}
+// Note: usualDelayBadgeLabel lives in BetweenLogic.kt (shared with the
+// station board); usualDelayForStation maps priorsForTrain rows to a station.
