@@ -14,6 +14,13 @@ All notable changes to TrainKraft are documented here.
 - `NotificationPolicy`: notify only on delay-category worsening (≤5 / 6–15 / >15 min), a ≥15-min shift inside SEVERE, cancellation, or completion — the first poll sets a silent baseline; station movement never notifies
 - Persisted tracking rows (`tracked_trains`, DB v3): bell state survives process death; journey completion deletes the row and stops the worker
 - CI runs the unit-test suite on every push/PR (plus lint)
+- Live-train detail is answer-first: headline status, server-timestamped freshness badge (`Live · HH:MM` / `Cached · Xm ago`) with manual refresh, journey-progress bar (`covered / total km · %`), 4-day instance strip (completed / running / yet-to-start) replacing the calendar picker, and a three-zone timeline — past stops show scheduled vs actual + delay chips, the current stop is one elevated card, future stops show `Exp.` predictions with dynamic `PF*` platforms
+- Non-stop stations collapse into expandable `▸ N non-stop stations` disclosure rows (from NTES `WTTSTNS`), direction reversals get a divider row, and every stop carries its km marker plus a per-stop coach-position bottom sheet
+- Cancellations/diversions surface as a red exceptions banner (`TrainExcpInfo`, newly wired through the repository)
+- Between-stations gains a 7-day date carousel with per-day train counts (derived from `DayOfRun`), dynamic type filters, departure/duration/arrival sort, and cards with duration, day-dots, class chips, and Schedule/Track actions
+- Home is an information hub: hero search card, quick-action grid (trains-between, PNR, station board, tracked trains), a tracked-trains overview backed by the persisted bells, and a read-only alerts-status row — PNR promoted out of Settings
+- Shared freshness primitives (`FreshnessBadge`, `DelayChip`, `StatusPill`, tabular figures) keep Live/Cached/Failed labeling identical on every screen
+- DTO contract extended from captured production fixtures (incl. live 12787 pull): per-stop `DARR`/`DDEP` delays, `WTTSTNS`, `reversalNumber`, ETA/ETD-unavailable flags, `LDSRC` journey progress, `TrainExcpDto` — test suite grew 50 → 115
 
 ### Fixed
 - Notifications fired on every 10-minute poll (including pure station movement) — now only meaningful changes
@@ -21,10 +28,12 @@ All notable changes to TrainKraft are documented here.
 - Average-delay failures vanished silently — now show a one-line "unavailable" note
 - GTFS import script was Windows-only (hard-coded paths) — now path-relative defaults
 - `backup_rules.xml` referenced removed files; version bumped to 0.4.0 (versionCode 8)
+- Room `createFromAsset` + unconditional `fallbackToDestructiveMigration` re-copied the asset DB on every open, wiping `tracked_trains`/`cached_responses` — now scoped to `fallbackToDestructiveMigrationFrom(1)` (smoke-found, verified: tracked rows survive force-stop)
+- Unconstrained `ShimmerList` `LazyColumn` crashed with an infinite-height constraint inside the between-stations screen (kraft-ui; smoke-found, verified on device)
 
 ### Changed
 - ViewModels moved off raw `JSONObject` string parsing to typed `LoadResult<T>` state (live status, average delay, boards)
-- Test suite grew 27 → 50 (fixture schema tests, notification-policy decision tests, PNR fakes — tests never hit production endpoints)
+- Test suite grew 27 → 115 (fixture schema tests, notification-policy decision tests, PNR fakes, date-carousel/day-run logic, detail headline/zone/progress/label logic — tests never hit production endpoints)
 
 ## [0.3.0] - 2026-09-19
 

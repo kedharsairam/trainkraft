@@ -171,6 +171,96 @@ class NtesDtoTest {
     // -------------------------------------------------------------- formats
 
     @Test
+    fun `live status 12787 mid-journey parses per-stop delays, wtt and reversal`() {
+        val dto = NtesJson.decode<LiveStatusDto>(fixture("live_status_12787_23sep.json"))
+        assertEquals("12787", dto.trainNumber)
+        assertEquals(1079, dto.totalDistance)
+        assertEquals(1, dto.runState)
+        assertEquals("DR", dto.lastEventCode)
+        assertTrue("LDSRC=${dto.distanceCoveredKm}", dto.distanceCoveredKm in 100..1079)
+        assertTrue("progress=${dto.progressPercent()}", dto.progressPercent() in 9..20)
+
+        val bza = dto.stops.first { it.code == "BZA" }
+        assertTrue(bza.isReversalStop())
+        assertEquals("5", bza.platform)
+        assertEquals(139, bza.distance)
+        assertEquals(26, bza.arrivalDelayMinutes())
+        assertEquals(27, bza.departureDelayMinutes())
+
+        // No other stop is a reversal.
+        assertTrue(dto.stops.filter { it.code != "BZA" }.none { it.isReversalStop() })
+
+        assertEquals(5, dto.stops.first { it.code == "PKO" }.nonStopCount())
+        assertEquals(10, dto.stops.first { it.code == "GDV" }.nonStopCount())
+
+        // Destination: arrival usable, no departure (DDEP "" → null).
+        val nsl = dto.stops.last()
+        assertEquals("NSL", nsl.code)
+        assertEquals("", nsl.departureDelay)
+        assertNull(nsl.departureDelayMinutes())
+    }
+
+    @Test
+    fun `live status 12951 parses per-stop delays, wtt and ua flags`() {
+        val dto = NtesJson.decode<LiveStatusDto>(fixture("live_status_12951_22sep.json"))
+
+        val st = dto.stops.first { it.code == "ST" }
+        assertEquals(4, st.arrivalDelayMinutes())
+        assertEquals(5, st.departureDelayMinutes())
+        assertEquals(23, st.nonStopCount())
+        assertFalse(st.arrivalUnavailable())
+        assertFalse(st.departureUnavailable())
+
+        // Destination arrived "On Time" → 0 minutes.
+        val ndls = dto.stops.first { it.code == "NDLS" }
+        assertEquals("On Time", ndls.arrivalDelay)
+        assertEquals(0, ndls.arrivalDelayMinutes())
+
+        // Future stop with ETA/ETD unavailable (UA flags = 1).
+        val bvi = dto.stops.first { it.code == "BVI" }
+        assertTrue(bvi.arrivalUnavailable())
+        assertTrue(bvi.departureUnavailable())
+
+        // Unreached destination row carries no UA flags → defaults 0.
+        assertFalse(ndls.arrivalUnavailable())
+        assertFalse(ndls.departureUnavailable())
+    }
+
+    @Test
+    fun `wtt sub-entry parses static timetable identity`() {
+        val dto = NtesJson.decode<LiveStatusDto>(fixture("live_status_12951_22sep.json"))
+        val first = dto.stops.first { it.code == "ST" }.nonStoppingStations.first()
+        assertEquals("URN", first.code)
+        assertEquals(266, first.distance)
+        assertEquals("20:01", first.scheduledArrival)
+        assertEquals("UTRAN", first.name)
+    }
+
+    @Test
+    fun `progress percent is zero without a total distance`() {
+        assertEquals(0, LiveStatusDto(totalDistance = 0, distanceCoveredKm = 50).progressPercent())
+        assertEquals(15, LiveStatusDto(totalDistance = 1079, distanceCoveredKm = 170).progressPercent())
+    }
+
+    @Test
+    fun `train exceptions parses no-exception sentinel`() {
+        val dto = NtesJson.decode<TrainExcpDto>(fixture("exceptions_12952.json"))
+        assertEquals("No Exceptional Details found for train 12952 !!!", dto.alertMsg)
+        assertFalse(dto.hasActiveException())
+        // Helper semantics on unit-constructed payloads.
+        assertFalse(TrainExcpDto().hasActiveException())
+        assertTrue(TrainExcpDto("Train Diverted via alternate route").hasActiveException())
+    }
+
+    @Test
+    fun `formats handle per-stop delay sentinels`() {
+        assertEquals(0, NtesFormats.delayToMinutes("On Time"))
+        assertEquals(6, NtesFormats.delayToMinutes("00:06"))
+        assertNull(NtesFormats.delayToMinutes(""))
+        assertEquals(0, NtesFormats.delayToMinutes("RT"))
+    }
+
+    @Test
     fun `formats handle every observed sentinel`() {
         assertEquals(0, NtesFormats.delayToMinutes("RT"))
         assertEquals(0, NtesFormats.delayToMinutes("On Time "))

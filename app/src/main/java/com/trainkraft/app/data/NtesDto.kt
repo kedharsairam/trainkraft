@@ -92,9 +92,28 @@ data class LiveStatusDto(
     @SerialName("SchType") val scheduleType: String = "",
     @SerialName("STNS") val stops: List<LiveStopDto> = emptyList(),
     @SerialName("AlertMsg") val alertMsg: String = "",
+    /**
+     * Km covered from the source so far — the basis of journey-progress %.
+     * Verified against production fixture live_status_12787_23sep.json, 23-Sep-2026
+     * (mid-journey run: LDSRC=170 of TTLDIST=1079).
+     */
+    @SerialName("LDSRC") val distanceCoveredKm: Int = 0,
+    /**
+     * Last event code, e.g. `"DR"` = departed from the last station.
+     * Verified against production fixture live_status_12787_23sep.json, 23-Sep-2026.
+     */
+    @SerialName("LEVNT") val lastEventCode: String = "",
 ) {
     /** Delay in minutes (server sends `"0"`/`"35"` as a string). */
     val delayMin: Int get() = delayRaw.toIntOrNull() ?: 0
+
+    /**
+     * Journey progress as a 0..100 percentage derived from [distanceCoveredKm]
+     * over [totalDistance]. Returns 0 when the total distance is unknown (0),
+     * avoiding a divide-by-zero on degenerate payloads.
+     */
+    fun progressPercent(): Int =
+        if (totalDistance > 0) ((distanceCoveredKm * 100) / totalDistance).coerceIn(0..100) else 0
 
     /**
      * Next stop the train hasn't reached — the one whose platform matters now.
@@ -122,11 +141,101 @@ data class LiveStopDto(
     @SerialName("departureCoachPosition") val departureCoachPosition: String = "",
     @SerialName("arrivalCoachClass") val arrivalCoachClass: String = "",
     @SerialName("departureCoachClass") val departureCoachClass: String = "",
+    /**
+     * Per-stop ARRIVAL delay: `"On Time"` or `"HH:MM"` (e.g. `"00:26"`).
+     * Present on every stop.
+     * Verified against production fixture live_status_12787_23sep.json, 23-Sep-2026.
+     */
+    @SerialName("DARR") val arrivalDelay: String = "",
+    /**
+     * Per-stop DEPARTURE delay, same formats as [arrivalDelay]; may be `""`
+     * (e.g. at the destination, which has no departure).
+     * Verified against production fixture live_status_12787_23sep.json, 23-Sep-2026.
+     */
+    @SerialName("DDEP") val departureDelay: String = "",
+    /**
+     * Non-stopping (working-timetable) stations BETWEEN this halt and the next
+     * halt. Absent entirely on some rows (source/destination) → defaults empty.
+     * Verified against production fixture live_status_12787_23sep.json, 23-Sep-2026.
+     */
+    @SerialName("WTTSTNS") val nonStoppingStations: List<WttStopDto> = emptyList(),
+    /**
+     * 1 marks the stop where the train reverses direction (BZA in the 12787
+     * fixture); 0 everywhere else.
+     * Verified against production fixture live_status_12787_23sep.json, 23-Sep-2026.
+     */
+    @SerialName("reversalNumber") val reversalNumber: Int = 0,
+    /**
+     * 1 means the ETA value is NOT available (`"—"`/`"Not Available"` in the
+     * IRCTC beta view); 0 means ETA is usable.
+     * Verified against production fixture live_status_12951_22sep.json, 23-Sep-2026
+     * (BVI, a future stop, carries 1).
+     */
+    @SerialName("ETA_UA_FLAG") val etaUnavailableFlag: Int = 0,
+    /**
+     * 1 means the ETD value is NOT available; 0 means ETD is usable.
+     * Same semantics/provenance as [etaUnavailableFlag].
+     */
+    @SerialName("ETD_UA_FLAG") val etdUnavailableFlag: Int = 0,
+    /**
+     * PWD coach position numbers on arrival; often blank.
+     * Verified against production fixture live_status_12787_23sep.json, 23-Sep-2026.
+     */
+    @SerialName("arrPWDCoachPosition") val arrivalPwdCoachPosition: String = "",
+    /**
+     * PWD coach position numbers on departure; often blank.
+     * Verified against production fixture live_status_12787_23sep.json, 23-Sep-2026.
+     */
+    @SerialName("depPWDCoachPosition") val departurePwdCoachPosition: String = "",
 ) {
     /** First non-blank coach composition at this stop (arrival preferred). */
     fun coachComposition(): String =
         arrivalCoachPosition.ifBlank { departureCoachPosition }
+
+    /**
+     * Arrival delay in minutes via [NtesFormats.delayToMinutes]; null only when
+     * [arrivalDelay] is blank.
+     */
+    fun arrivalDelayMinutes(): Int? = NtesFormats.delayToMinutes(arrivalDelay)
+
+    /**
+     * Departure delay in minutes via [NtesFormats.delayToMinutes]; null when
+     * [departureDelay] is blank (e.g. destination rows).
+     */
+    fun departureDelayMinutes(): Int? = NtesFormats.delayToMinutes(departureDelay)
+
+    /** Count of non-stopping stations between this halt and the next halt. */
+    fun nonStopCount(): Int = nonStoppingStations.size
+
+    /** True when this is the direction-reversal stop ([reversalNumber] == 1). */
+    fun isReversalStop(): Boolean = reversalNumber == 1
+
+    /** True when the ETA value is flagged unavailable ([etaUnavailableFlag] == 1). */
+    fun arrivalUnavailable(): Boolean = etaUnavailableFlag == 1
+
+    /** True when the ETD value is flagged unavailable ([etdUnavailableFlag] == 1). */
+    fun departureUnavailable(): Boolean = etdUnavailableFlag == 1
 }
+
+/**
+ * One non-stopping (working-timetable) station between two halts — a sub-entry
+ * of [LiveStopDto.nonStoppingStations]. Carries only static timetable identity
+ * (code/names, passing times, distance); no live ETA or platform.
+ *
+ * The Hindi name [nameHindi] is often `""` in these sub-entries (verified:
+ * MLYG/DIQ rows in live_status_12787_23sep.json, 23-Sep-2026) — the default
+ * keeps the parse alive.
+ */
+@Serializable
+data class WttStopDto(
+    @SerialName("SC") val code: String = "",
+    @SerialName("SN") val name: String = "",
+    @SerialName("SHN") val nameHindi: String = "",
+    @SerialName("STA") val scheduledArrival: String = "",
+    @SerialName("STD") val scheduledDeparture: String = "",
+    @SerialName("DIST") val distance: Int = 0,
+    @SerialName("SrWTT") val seqWtt: Int = 0,
+)
 
 // ----------------------------------------------------------------- avg delay
 
@@ -324,3 +433,31 @@ data class TrainRunInstanceDto(
     @SerialName("startDate") val startDate: String = "",
     @SerialName("excpMsg") val exceptionMsg: String = "",
 )
+
+// ------------------------------------------------------ train exceptions
+
+/**
+ * TrainExcpInfo — service exceptions (cancellations / diversions) for a train.
+ *
+ * The observed production shape is minimal: a single `AlertMsg` string, which
+ * reads `"No Exceptional Details found for train <n> !!!"` when nothing is
+ * wrong (verified: exceptions_12952.json, 63 bytes, captured 2026-09-23). A
+ * richer server payload with extra keys still parses — unknown keys are
+ * ignored and every field defaults — so callers must rely on
+ * [hasActiveException] rather than the raw string.
+ */
+@Serializable
+data class TrainExcpDto(
+    @SerialName("AlertMsg") val alertMsg: String = "",
+) {
+    /**
+     * True when the server reports a real exception. The "no details" sentinel
+     * (and a blank message, e.g. a degraded/empty payload) means no active
+     * exception.
+     */
+    fun hasActiveException(): Boolean {
+        val msg = alertMsg.trim()
+        if (msg.isEmpty()) return false
+        return !msg.contains("no exceptional", ignoreCase = true)
+    }
+}
