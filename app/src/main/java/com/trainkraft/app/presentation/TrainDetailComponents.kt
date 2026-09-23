@@ -1203,3 +1203,153 @@ internal fun ScheduleStopRow(
         }
     }
 }
+
+// ------------------------------------------------- Phase C Go-live + alarms
+
+/** Destination-arrival alarm lead options (minutes before predicted arrival). */
+val ARRIVAL_ALARM_OPTIONS = listOf(15, 30, 60)
+
+/**
+ * Go-live tier button: idle → "Go live" action; active → "Live" pill + Stop.
+ * Bell (baseline, "checks every 15 minutes") is untouched elsewhere; this is
+ * the minute tier ("checks every minute · uses more battery").
+ */
+@Composable
+internal fun GoLiveButton(
+    isLive: Boolean,
+    onStart: () -> Unit,
+    onStop: () -> Unit,
+) {
+    if (isLive) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(KraftSpacing.Spacing4),
+        ) {
+            StatusPill(label = "Live", tone = PillTone.Live)
+            androidx.compose.material3.TextButton(
+                onClick = onStop,
+                modifier = Modifier.heightIn(min = KraftSpacing.TouchTarget),
+            ) {
+                Text("Stop")
+            }
+        }
+    } else {
+        androidx.compose.material3.OutlinedButton(
+            onClick = onStart,
+            modifier = Modifier.heightIn(min = KraftSpacing.TouchTarget),
+        ) {
+            Text(
+                text = "Go live",
+                style = tabularFigures(MaterialTheme.typography.labelLarge),
+            )
+        }
+    }
+}
+
+/**
+ * Alarms section: destination-arrival segmented control (15/30/60 min lead)
+ * + next-stop approach toggle (10-min lead) + scheduled row with Cancel.
+ * Arbitrary-stop alarms are Phase E — the footnote says so literally.
+ */
+@Composable
+internal fun AlarmSection(
+    destCode: String,
+    nextStopCode: String?,
+    arrivalAlarmMinutes: Int?,
+    alarmTriggerAt: Long?,
+    approachEnabled: Boolean,
+    onSelectArrivalMinutes: (Int) -> Unit,
+    onCancelArrivalAlarm: () -> Unit,
+    onToggleApproach: (Boolean) -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = KraftSpacing.Spacing16),
+        verticalArrangement = Arrangement.spacedBy(KraftSpacing.Spacing8),
+    ) {
+        Text(
+            text = "Alarms",
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.SemiBold,
+        )
+        Text(
+            text = "Arrival at $destCode",
+            style = tabularFigures(MaterialTheme.typography.bodyMedium),
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(KraftSpacing.Spacing8),
+        ) {
+            ARRIVAL_ALARM_OPTIONS.forEach { minutes ->
+                val selected = arrivalAlarmMinutes == minutes
+                androidx.compose.material3.FilterChip(
+                    selected = selected,
+                    onClick = { onSelectArrivalMinutes(minutes) },
+                    label = {
+                        Text(
+                            text = "$minutes min",
+                            style = tabularFigures(MaterialTheme.typography.labelLarge),
+                        )
+                    },
+                    modifier = Modifier.heightIn(min = KraftSpacing.TouchTarget),
+                )
+            }
+        }
+        if (arrivalAlarmMinutes != null) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(KraftSpacing.Spacing8),
+            ) {
+                Text(
+                    text = arrivalScheduledLabel(destCode, arrivalAlarmMinutes, alarmTriggerAt),
+                    style = tabularFigures(MaterialTheme.typography.bodySmall),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.weight(1f),
+                )
+                androidx.compose.material3.TextButton(
+                    onClick = onCancelArrivalAlarm,
+                    modifier = Modifier.heightIn(min = KraftSpacing.TouchTarget),
+                ) {
+                    Text("Cancel")
+                }
+            }
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(KraftSpacing.Spacing8),
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Next stop approach",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                Text(
+                    text = if (nextStopCode.isNullOrBlank()) "No upcoming stop"
+                    else "Alerts 10 min before $nextStopCode",
+                    style = tabularFigures(MaterialTheme.typography.bodySmall),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            androidx.compose.material3.Switch(
+                checked = approachEnabled,
+                onCheckedChange = onToggleApproach,
+                enabled = !nextStopCode.isNullOrBlank(),
+            )
+        }
+        Text(
+            text = "Alarms for other stops come later.",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+/** Scheduled-row label: `"Alert 30 min before NDLS · 14:05"` (clock when known). */
+fun arrivalScheduledLabel(destCode: String, minutesBefore: Int, triggerAtMs: Long?): String =
+    buildString {
+        append("Alert $minutesBefore min before $destCode")
+        if (triggerAtMs != null) append(" · ${clockLabel(triggerAtMs)}")
+    }

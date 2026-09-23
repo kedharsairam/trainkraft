@@ -1,7 +1,10 @@
 package com.trainkraft.app.presentation
 
 import android.Manifest
+import android.app.ActivityManager
 import android.app.Application
+import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.util.Log
@@ -10,8 +13,12 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.trainkraft.app.AlarmScheduler
+import com.trainkraft.app.BatteryExemption
 import com.trainkraft.app.LiveStatusNotificationWorker
+import com.trainkraft.app.TrackingService
 import com.trainkraft.app.TrainKraftApp
+import com.trainkraft.app.minutesUntilNextStop
 import com.trainkraft.app.BuildConfig
 import com.trainkraft.app.data.AvgDelayDto
 import com.trainkraft.app.data.DelayPriorEntity
@@ -119,6 +126,35 @@ class TrainDetailViewModel(
     private val _isTracking = MutableStateFlow(false)
     val isTracking: StateFlow<Boolean> = _isTracking.asStateFlow()
 
+    // --- Phase C live ticker + Go-live + alarms UI state ---
+    // Ticker: screen-side lifecycle (ON_RESUME/ON_PAUSE) drives
+    // start/stopLiveTicker; the loop calls refreshLiveStatus(), whose
+    // isLiveLoading guard prevents overlapping fetches.
+    private var tickerJob: kotlinx.coroutines.Job? = null
+    private val _isTickerRunning = MutableStateFlow(false)
+    val isTickerRunning: StateFlow<Boolean> = _isTickerRunning.asStateFlow()
+
+    /**
+     * Minute-level service presence (Go-live tier). No service-query API
+     * exists, so this is refreshed from ActivityManager on screen resume
+     * (own-process check — deprecated API but reliable for our own
+     * service; documented fallback, never asserted in tests).
+     */
+    private val _isLiveServiceActive = MutableStateFlow(false)
+    val isLiveServiceActive: StateFlow<Boolean> = _isLiveServiceActive.asStateFlow()
+
+    /** Destination-arrival alarm lead time (null = none scheduled). */
+    private val _arrivalAlarmMinutes = MutableStateFlow<Int?>(null)
+    val arrivalAlarmMinutes: StateFlow<Int?> = _arrivalAlarmMinutes.asStateFlow()
+
+    /** Next-stop approach watch (10-min lead alarm + persisted watch station). */
+    private val _approachWatchEnabled = MutableStateFlow<Boolean>(false)
+    val approachWatchEnabled: StateFlow<Boolean> = _approachWatchEnabled.asStateFlow()
+
+    /** Wall-clock trigger of the currently scheduled destination alarm. */
+    private val _alarmTriggerAt = MutableStateFlow<Long?>(null)
+    val alarmTriggerAt: StateFlow<Long?> = _alarmTriggerAt.asStateFlow()
+
     // --- Prediction engine (Phase B; independent flow, silent-fail → null) ---
     // Priors/fog/vintage come from the local pack tables (empty when the pack
     // is absent — the engine handles that); predictions recompute whenever
@@ -184,6 +220,189 @@ class TrainDetailViewModel(
                 _isTracking.value = true
             }
         }
+    }
+
+    // ------------------------------------------------- Phase C live ticker
+
+    /**
+     * Starts the foreground live ticker. Gated on the autoRefresh setting
+     * (off → no ticker); single-job (repeat starts are no-ops). Each tick
+     * calls [refreshLiveStatus] (isLiveLoading-guarded) then sleeps the
+     * [tickerIntervalSec] ladder for the current minutes-to-next-event.
+     */
+    fun startLiveTicker(autoRefreshEnabled: Boolean) {
+        if (!autoRefreshEnabled) return
+        if (tickerJob?.isActive == true) return
+        tickerJob = viewModelScope.launch {
+            _isTickerRunning.value = true
+            try {
+                while (true) {
+                    refreshLiveStatus()
+                    kotlinx.coroutines.delay(
+                        tickerIntervalSec(currentMinutesToNextEvent()) * 1000L,
+                    )
+                }
+            } catch (_: kotlinx.coroutines.CancellationException) {
+                // Normal stop path — fall through to finally.
+            } finally {
+                _isTickerRunning.value = false
+            }
+        }
+    }
+
+    fun stopLiveTicker() {
+        tickerJob?.cancel()
+        tickerJob = null
+        _isTickerRunning.value = false
+    }
+
+    /**
+     * Honest minutes-until-next-event input for the ticker ladder: engine
+     * predictions + live stops via the service's [minutesUntilNextStop]
+     * (same math the minute loop uses). Null when unknown → 60s tick.
+     */
+    private fun currentMinutesToNextEvent(): Long? {
+        val live = _liveStatus.value ?: return null
+        val stops = live.stops
+        if (stops.isEmpty()) return null
+        return try {
+            val anchor = currentStopIndex(
+                stops.map { it.arrived },
+                stops.map { it.departed },
+            )
+            val predictedByCode = _predictions.value?.predictions
+                ?.associate { it.stationCode to it.predictedDelayMin }
+                .orEmpty()
+            minutesUntilNextStop(stops, anchor, predictedByCode, System.currentTimeMillis())
+                ?.toLong()
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    // ------------------------------------------------- Phase C Go-live tier
+
+    /**
+     * Refreshes [isLiveServiceActive] via ActivityManager (own service only).
+     * Called on screen resume; the service itself owns truth, this is display.
+     */
+    fun refreshLiveServiceState(context: Context) {
+        _isLiveServiceActive.value = isServiceRunning(context, TrackingService::class.java)
+    }
+
+    /**
+     * Go-live: ensures the tracked row exists (the service loop only polls
+     * tracked rows — without one it would exit immediately) then starts the
+     * minute-level foreground service. Bell state is left untouched otherwise.
+     */
+    fun startLiveTracking(context: Context) {
+        viewModelScope.launch {
+            val td = trackingDao
+            if (td != null && td.get(trainNumber) == null) {
+                td.upsert(
+                    TrackedTrainEntity(
+                        trainNumber = trainNumber,
+                        trackedAt = System.currentTimeMillis(),
+                    ),
+                )
+                LiveStatusNotificationWorker.start(context, trainNumber)
+                _isTracking.value = true
+            }
+            val intent = Intent(context, TrackingService::class.java)
+                .setAction(TrackingService.ACTION_START_TRACKING)
+                .putExtra(TrackingService.EXTRA_TRAIN_NUMBER, trainNumber)
+            ContextCompat.startForegroundService(context, intent)
+            _isLiveServiceActive.value = true
+        }
+    }
+
+    fun stopLiveTracking(context: Context) {
+        val intent = Intent(context, TrackingService::class.java)
+            .setAction(TrackingService.ACTION_STOP_TRACKING)
+            .putExtra(TrackingService.EXTRA_TRAIN_NUMBER, trainNumber)
+        context.startService(intent)
+        _isLiveServiceActive.value = false
+    }
+
+    // ------------------------------------------------- Phase C alarms UI
+
+    /**
+     * Destination-arrival alarm: fires [minutesBefore] ahead of the
+     * engine-predicted destination arrival (past → now+1s clamp). Persists
+     * nothing beyond the AlarmManager entry + [arrivalAlarmMinutes] display.
+     */
+    fun scheduleArrivalAlarm(context: Context, minutesBefore: Int) {
+        val live = _liveStatus.value ?: return
+        val dest = live.destCode.trim()
+        if (dest.isEmpty()) return
+        val predictedEpoch = predictedArrivalFor(live, dest, System.currentTimeMillis())
+            ?: return
+        val triggerAt = AlarmScheduler.scheduleStationAlarm(
+            context, trainNumber, dest, minutesBefore, predictedEpoch,
+        )
+        _arrivalAlarmMinutes.value = minutesBefore
+        _alarmTriggerAt.value = triggerAt
+    }
+
+    fun cancelArrivalAlarm(context: Context) {
+        val live = _liveStatus.value
+        val dest = live?.destCode?.trim().orEmpty()
+        if (dest.isNotEmpty()) {
+            AlarmScheduler.cancelAlarm(context, trainNumber, dest)
+        }
+        _arrivalAlarmMinutes.value = null
+        _alarmTriggerAt.value = null
+    }
+
+    /**
+     * Next-stop approach toggle (10-min lead): on → persist the next
+     * unreached stop via TrackingDao.setWatchStation AND schedule the exact
+     * 10-min alarm (receiver notifies in alarmFired mode; the one-shot gate
+     * is enforced downstream via lastApproachFor). Off → cancel both.
+     */
+    fun setApproachWatch(context: Context, enabled: Boolean) {
+        viewModelScope.launch {
+            val next = _liveStatus.value?.nextUnreachedStop()?.code?.trim().orEmpty()
+            if (enabled && next.isNotEmpty()) {
+                trackingDao?.setWatchStation(trainNumber, next.uppercase())
+                val predictedEpoch = predictedArrivalFor(
+                    _liveStatus.value!!, next, System.currentTimeMillis(),
+                )
+                if (predictedEpoch != null) {
+                    AlarmScheduler.scheduleStationAlarm(
+                        context, trainNumber, next.uppercase(),
+                        APPROACH_LEAD_MIN, predictedEpoch,
+                    )
+                }
+                _approachWatchEnabled.value = true
+            } else {
+                if (next.isNotEmpty()) {
+                    AlarmScheduler.cancelAlarm(context, trainNumber, next.uppercase())
+                }
+                trackingDao?.setWatchStation(trainNumber, null)
+                _approachWatchEnabled.value = false
+            }
+        }
+    }
+
+    /**
+     * Engine-predicted arrival epoch for [stationCode]: scheduled clock +
+     * predicted delay on today's IST date (overnight +24h rollover mirrors
+     * the service helper). Null when the schedule clock is unknown.
+     */
+    private fun predictedArrivalFor(
+        live: LiveStatusDto,
+        stationCode: String,
+        nowMs: Long,
+    ): Long? {
+        val stop = live.stops.firstOrNull {
+            it.code.equals(stationCode, ignoreCase = true)
+        } ?: return null
+        val sched = stop.scheduledArrival.ifBlank { stop.scheduledDeparture }
+        val predictedDelay = _predictions.value?.predictions
+            ?.firstOrNull { it.stationCode.equals(stationCode, ignoreCase = true) }
+            ?.predictedDelayMin ?: 0
+        return predictedArrivalEpochMs(sched, predictedDelay, nowMs)
     }
 
     fun loadSchedule() {
@@ -628,4 +847,90 @@ fun packVintageCaption(generatedAt: String?): String? {
     val month = match.groupValues[2].toIntOrNull() ?: return null
     if (month !in 1..12) return null
     return "delay data · ${vintageMonthNames[month - 1]} $year"
+}
+
+// ------------------------------------------------- Phase C pure helpers
+// Top-level and unit-tested; the ViewModel only wires flows around them.
+
+/** Next-stop approach alarm lead (minutes before predicted arrival). */
+const val APPROACH_LEAD_MIN = 10
+
+/**
+ * Foreground ticker ladder: 30s when the next predicted event is ≤15 min
+ * away, 60s within the hour, 120s beyond; null (unknown) → 60s.
+ */
+fun tickerIntervalSec(predictedMinToNextEvent: Long?): Long = when {
+    predictedMinToNextEvent == null -> 60L
+    predictedMinToNextEvent <= 15L -> 30L
+    predictedMinToNextEvent <= 60L -> 60L
+    else -> 120L
+}
+
+/** Display tier for the two-tier tracking model (bell vs Go-live). */
+enum class LiveTrackingUiState { OFF, BASELINE, LIVE }
+
+/**
+ * Pure tier mapper (the only tested piece of Go-live state): no tracked row
+ * → OFF; row without the minute service → BASELINE ("checks every 15
+ * minutes"); service running → LIVE ("checks every minute · uses more
+ * battery"). The service flag comes from [isServiceRunning].
+ */
+fun liveTrackingUiState(isTrackingRow: Boolean, serviceRunning: Boolean): LiveTrackingUiState =
+    when {
+        serviceRunning -> LiveTrackingUiState.LIVE
+        isTrackingRow -> LiveTrackingUiState.BASELINE
+        else -> LiveTrackingUiState.OFF
+    }
+
+/**
+ * Own-service running check via ActivityManager (deprecated API, still
+ * reliable for our own process). Display fallback only — never asserted in
+ * tests; the tested contract is [liveTrackingUiState].
+ */
+fun isServiceRunning(context: Context, serviceClass: Class<*>): Boolean {
+    val manager = context.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager
+        ?: return false
+    return runCatching {
+        @Suppress("DEPRECATION")
+        manager.getRunningServices(Int.MAX_VALUE)
+            .any { it.service.className == serviceClass.name }
+    }.getOrDefault(false)
+}
+
+/**
+ * Alarm trigger with past-clamp: fires [minutesBefore] ahead of the
+ * predicted arrival, but never in the past — a stale prediction fires
+ * 1s from now instead of immediately-at-schedule.
+ */
+fun alarmTriggerEpoch(
+    predictedArrivalEpochMs: Long,
+    minutesBefore: Int,
+    nowMs: Long,
+): Long = maxOf(
+    AlarmScheduler.alarmTriggerAtMillis(predictedArrivalEpochMs, minutesBefore),
+    nowMs + 1_000L,
+)
+
+/**
+ * Engine-predicted arrival epoch: IST calendar date of [nowEpochMs] at
+ * [schedHhmm] plus [predictedDelayMin]. Overnight rollover (+24h when the
+ * result is >12h in the past, mirroring the service helper). Null when the
+ * schedule clock is blank/unparseable — the caller skips scheduling.
+ */
+fun predictedArrivalEpochMs(
+    schedHhmm: String?,
+    predictedDelayMin: Int,
+    nowEpochMs: Long,
+): Long? {
+    val base = NtesFormats.hhmmToMinutes(schedHhmm) ?: return null
+    val cal = java.util.Calendar.getInstance(java.util.TimeZone.getTimeZone("Asia/Kolkata")).apply {
+        timeInMillis = nowEpochMs
+    }
+    cal.set(java.util.Calendar.HOUR_OF_DAY, base / 60)
+    cal.set(java.util.Calendar.MINUTE, base % 60)
+    cal.set(java.util.Calendar.SECOND, 0)
+    cal.set(java.util.Calendar.MILLISECOND, 0)
+    var arrival = cal.timeInMillis + predictedDelayMin.coerceAtLeast(0) * 60_000L
+    if (arrival < nowEpochMs - 12 * 60_000L) arrival += 24 * 60 * 60_000L
+    return arrival
 }

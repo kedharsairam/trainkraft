@@ -49,3 +49,9 @@
 
 # NtesKeys (used by NtesConfig.parseKeys)
 -keep class com.trainkraft.app.data.NtesKeys { *; }
+
+# TrackingService + alarms (Phase C foreground service, manifest-referenced)
+-keep class com.trainkraft.app.TrackingService { *; }
+-keep class com.trainkraft.app.AlarmReceiver { *; }
+-keep class com.trainkraft.app.AlarmScheduler { *; }
+-keep class com.trainkraft.app.BatteryExemption { *; }
