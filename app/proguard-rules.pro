@@ -55,3 +55,7 @@
 -keep class com.trainkraft.app.AlarmReceiver { *; }
 -keep class com.trainkraft.app.AlarmScheduler { *; }
 -keep class com.trainkraft.app.BatteryExemption { *; }
+
+# TravelService + trace (Phase D foreground location service, manifest-referenced)
+-keep class com.trainkraft.app.TravelService { *; }
+-keep class com.trainkraft.app.data.TravelFixEntity { *; }
