@@ -78,8 +78,8 @@ import com.kraft.ui.tokens.KraftSpacing
 @Composable
 fun TravelScreen(
     trainNumber: String,
-    fallbackStopLabel: String?,
-    fallbackBasisLabel: String?,
+    fallbackStopLabel: String? = null,
+    fallbackBasisLabel: String? = null,
     onClose: () -> Unit,
 ) {
     val context = LocalContext.current
