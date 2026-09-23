@@ -62,4 +62,12 @@ interface TrackingDao {
      */
     @Query("UPDATE tracked_trains SET lastApproachFor = NULL WHERE trainNumber = :trainNumber")
     suspend fun clearApproachNotified(trainNumber: String)
+
+    /** Go-live tier flag (see [TrackedTrainEntity.liveTracking]). */
+    @Query("UPDATE tracked_trains SET liveTracking = :enabled WHERE trainNumber = :trainNumber")
+    suspend fun setLiveTracking(trainNumber: String, enabled: Boolean)
+
+    /** Cold-start reconciliation: no minute presence survives process death. */
+    @Query("UPDATE tracked_trains SET liveTracking = 0")
+    suspend fun clearAllLiveTracking()
 }

@@ -55,12 +55,14 @@ import java.util.TimeZone
  *   gate on `lastApproachFor` (one notify per watched station per journey).
  *
  * LIFECYCLE / ACTIONS:
- * - ACTION_START_TRACKING(trainNumber): ensure foreground + (re)start the
- *   poll loop. Idempotent; safe to call per bell toggle.
- * - ACTION_STOP_TRACKING(trainNumber): delete the tracked row, cancel that
- *   train's baseline worker (it would self-cancel on next run anyway once
- *   the row is gone — this is just immediate), drop it from this loop.
- * - ACTION_STOP_ALL: stop the loop and the service.
+ * - ACTION_START_TRACKING(trainNumber): flag the row live + ensure
+ *   foreground + (re)start the poll loop. Idempotent; safe to call per
+ *   bell toggle.
+ * - ACTION_STOP_TRACKING(trainNumber): clear the flag, drop it from this
+ *   loop. The tracked ROW STAYS (bell/worker baseline untouched) —
+ *   unfollowing is the bell's job alone (toggleTracking). This is the fix
+ *   for the lost-bell bug: stopping minute presence must never unfollow.
+ * - ACTION_STOP_ALL: clear all flags, stop the loop and the service.
  * - Stop-self: the loop exits (and the service stops itself) when no
  *   tracked rows remain, or when every remaining train completed
  *   (completion deletes its row via the policy's `journeyOver` path).
@@ -147,7 +149,15 @@ class TrackingService : Service() {
         ensureForeground(summaryFor(activeTrainsSnapshot()))
         when (intent?.action) {
             ACTION_START_TRACKING -> {
-                ensureLoopRunning()
+                val train = intent.getStringExtra(EXTRA_TRAIN_NUMBER)
+                scope.launch {
+                    if (train != null) {
+                        runCatching {
+                            container().trackingDao.setLiveTracking(train, true)
+                        }
+                    }
+                    ensureLoopRunning()
+                }
             }
             ACTION_STOP_TRACKING -> {
                 val train = intent.getStringExtra(EXTRA_TRAIN_NUMBER)
@@ -160,7 +170,13 @@ class TrackingService : Service() {
                 loopJob?.cancel()
                 loopJob = null
                 trainIntervals.clear()
-                stopSelf()
+                scope.launch {
+                    runCatching {
+                        container().trackingDao.getAll()
+                            .forEach { container().trackingDao.setLiveTracking(it.trainNumber, false) }
+                    }
+                    stopSelf()
+                }
             }
             else -> ensureLoopRunning()
         }
@@ -182,22 +198,25 @@ class TrackingService : Service() {
             while (true) {
                 val trains = runCatching { container().trackingDao.getAll() }
                     .getOrNull().orEmpty()
-                if (trains.isEmpty()) {
+                // Minute presence is opt-in per train (liveTracking flag):
+                // unflagged rows keep their 15-min worker baseline only.
+                val live = trains.filter { it.liveTracking }
+                if (live.isEmpty()) {
                     stopSelf()
                     return@launch
                 }
                 // Drop completions/untracks from the previous cycle.
-                trainIntervals.keys.retainAll(trains.map { it.trainNumber }.toSet())
+                trainIntervals.keys.retainAll(live.map { it.trainNumber }.toSet())
 
                 var first = true
-                for (tracked in trains) {
+                for (tracked in live) {
                     if (!first) delay(STAGGER_OFFSET_MS)
                     first = false
                     val recommended = runCatching { pollTrain(tracked.trainNumber) }
                         .getOrDefault(POLL_INTERVAL_MS)
                     trainIntervals[tracked.trainNumber] = recommended
                 }
-                updateForeground(summaryFor(trains.map { it.trainNumber }))
+                updateForeground(summaryFor(live.map { it.trainNumber }))
                 cycleMs = (trainIntervals.values.minOrNull() ?: POLL_INTERVAL_MS)
                     .coerceIn(BOOST_POLL_INTERVAL_MS, POLL_INTERVAL_MS)
                 delay(cycleMs)
@@ -279,8 +298,10 @@ class TrackingService : Service() {
     }
 
     private suspend fun stopOneTrain(trainNumber: String) {
-        runCatching { container().trackingDao.delete(trainNumber) }
-        runCatching { LiveStatusNotificationWorker.stop(this, trainNumber) }
+        // Presence only: clearing the Go-live flag ends minute polling for
+        // this train. The tracked row stays (bell/worker baseline untouched) —
+        // unfollowing is the bell's job alone (toggleTracking).
+        runCatching { container().trackingDao.setLiveTracking(trainNumber, false) }
         trainIntervals.remove(trainNumber)
     }
 

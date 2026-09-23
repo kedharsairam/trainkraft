@@ -112,7 +112,8 @@ object UserDataMigrator {
                         "`lastCategory` TEXT, " +
                         "`lastPollAt` INTEGER, " +
                         "`watchStationCode` TEXT, " +
-                        "`lastApproachFor` TEXT)"
+                        "`lastApproachFor` TEXT, " +
+                        "`liveTracking` INTEGER NOT NULL DEFAULT 0)"
                 )
                 db.execSQL(
                     "CREATE TABLE IF NOT EXISTS `userdb`.`cached_responses` (" +

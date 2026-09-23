@@ -1,5 +1,6 @@
 package com.trainkraft.app.data
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 
@@ -34,4 +35,19 @@ data class TrackedTrainEntity(
      * null = none). Set via TrackingDao.markApproachNotified.
      */
     val lastApproachFor: String? = null,
+    /**
+     * Minute-level live tracking enabled (Go-live tier). The bell (row
+     * existence) is the 15-minute worker baseline; this flag is the
+     * foreground-service minute presence. Stopping Go-live clears the flag
+     * but keeps the row — unfollowing is the bell's job alone. Reset for all
+     * rows on cold start (no minute presence survives process death).
+     *
+     * DB-level `DEFAULT 0` is deliberate (not just the Kotlin default): raw
+     * INSERTs that omit the column (older migration-test DDL, hand SQL) must
+     * not violate NOT NULL, and Room validates the default on open — so the
+     * [UserDatabase.MIGRATION_3_4] ADD COLUMN and [UserDataMigrator]'s CREATE
+     * carry the identical default. Keep all three in sync.
+     */
+    @ColumnInfo(name = "liveTracking", defaultValue = "0")
+    val liveTracking: Boolean = false,
 )

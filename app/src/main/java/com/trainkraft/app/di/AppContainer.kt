@@ -45,6 +45,12 @@ class AppContainer(context: Context) {
         // SQLite in autocommit (ATTACH inside Room's migration transaction
         // throws under WAL mode on-device — never again). Silent + idempotent.
         UserDataMigrator.migrateV3UserTables(appContext)
+        // Cold-start reconciliation: no minute presence survives process
+        // death, so clear all Go-live flags (rows stay = baseline follows
+        // continue on the worker; the pill re-arms on next Go-live tap).
+        bootstrapScope.launch {
+            runCatching { userDatabase.trackingDao().clearAllLiveTracking() }
+        }
         val instance = TrainDatabase.getInstance(appContext)
         // Pack bootstrap lives here (not in VMs): single process-once trigger
         // at the earliest DB-touching point, off the Activity init path.
