@@ -4,6 +4,8 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 
 /**
  * Per-user private database (`user.db`): followed trains + offline cache.
@@ -36,7 +38,7 @@ import androidx.room.RoomDatabase
         TrackedTrainEntity::class,
         CachedResponseEntity::class,
     ],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 abstract class UserDatabase : RoomDatabase() {
@@ -47,6 +49,18 @@ abstract class UserDatabase : RoomDatabase() {
     companion object {
         const val DB_NAME = "user.db"
 
+        /**
+         * v1 -> v2: station-alarm columns on `tracked_trains` (Phase C).
+         * Nullable TEXT, no backfill — existing rows read null (= no watch
+         * station, no approach notified), which is the correct default.
+         */
+        internal val MIGRATION_1_2 = object : Migration(1, 2) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `tracked_trains` ADD COLUMN `watchStationCode` TEXT")
+                db.execSQL("ALTER TABLE `tracked_trains` ADD COLUMN `lastApproachFor` TEXT")
+            }
+        }
+
         @Volatile
         private var INSTANCE: UserDatabase? = null
 
@@ -56,7 +70,7 @@ abstract class UserDatabase : RoomDatabase() {
                     context.applicationContext,
                     UserDatabase::class.java,
                     DB_NAME
-                ).build()
+                ).addMigrations(MIGRATION_1_2).build()
                 INSTANCE = instance
                 instance
             }

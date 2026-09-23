@@ -46,12 +46,20 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import com.trainkraft.app.BatteryExemption
+import com.trainkraft.app.presentation.PermissionFlow.LiveTrackingRequirement
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -114,6 +122,10 @@ fun TrainDetailScreen(
     val isAvgDelayLoading by viewModel.isAvgDelayLoading.collectAsState()
     val isTracking by viewModel.isTracking.collectAsState()
     val isOfficialSchedule by viewModel.isOfficialSchedule.collectAsState()
+    val isLiveServiceActive by viewModel.isLiveServiceActive.collectAsState()
+    val arrivalAlarmMinutes by viewModel.arrivalAlarmMinutes.collectAsState()
+    val approachWatchEnabled by viewModel.approachWatchEnabled.collectAsState()
+    val alarmTriggerAt by viewModel.alarmTriggerAt.collectAsState()
     val instances by viewModel.instances.collectAsState()
     val exceptions by viewModel.exceptions.collectAsState()
     val predictions by viewModel.predictions.collectAsState()
@@ -141,6 +153,48 @@ fun TrainDetailScreen(
     LaunchedEffect(autoRefresh, schedule) {
         if (autoRefresh && schedule.isNotEmpty() && liveStatus == null && liveError == null && !isLiveLoading) {
             viewModel.refreshLiveStatus()
+        }
+    }
+
+    // Phase C foreground ticker lifecycle: start on ON_RESUME (gated on the
+    // autoRefresh setting inside the VM), stop on ON_PAUSE/dispose. The
+    // service truth is refreshed here too (ActivityManager display check).
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner, autoRefresh) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_RESUME -> {
+                    viewModel.refreshLiveServiceState(appContext)
+                    viewModel.startLiveTicker(autoRefresh)
+                }
+                Lifecycle.Event.ON_PAUSE -> viewModel.stopLiveTicker()
+                else -> Unit
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            viewModel.stopLiveTicker()
+        }
+    }
+
+    // First-Go-live onboarding sheet (shown-flag persisted in SettingsStore).
+    val scope = rememberCoroutineScope()
+    val onboardingShown by remember(appContext) {
+        SettingsStore.liveTrackingOnboardingShownFlow(appContext)
+    }.collectAsState(initial = true)
+    var showOnboarding by remember { mutableStateOf(false) }
+    var onboardingMissing by remember { mutableStateOf(emptyList<LiveTrackingRequirement>()) }
+    fun requestGoLive() {
+        if (shouldShowLiveTrackingOnboarding(onboardingShown)) {
+            onboardingMissing = PermissionFlow.missingLiveTrackingRequirements(
+                notificationsMissing = !PermissionFlow.hasNotifications(context),
+                exactAlarmMissing = !PermissionFlow.canScheduleExactAlarms(context),
+                batteryExemptionMissing = !BatteryExemption.isExempt(context),
+            )
+            showOnboarding = true
+        } else {
+            viewModel.startLiveTracking(appContext)
         }
     }
 
@@ -250,6 +304,19 @@ fun TrainDetailScreen(
                                 else MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
+                        // Go-live tier (minute checks · more battery) next to
+                        // the bell (baseline, every 15 minutes).
+                        GoLiveButton(
+                            isLive = isLiveServiceActive,
+                            onStart = {
+                                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                requestGoLive()
+                            },
+                            onStop = {
+                                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                viewModel.stopLiveTracking(appContext)
+                            },
+                        )
                     }
                     if (schedule.isNotEmpty()) {
                         IconButton(onClick = {
@@ -388,6 +455,27 @@ fun TrainDetailScreen(
                                 CoachPositionSection(
                                     data = live,
                                     highlightIndex = currentLiveIndex,
+                                )
+                            }
+                            item(key = "alarms") {
+                                AlarmSection(
+                                    destCode = live.destCode.ifBlank { live.destName },
+                                    nextStopCode = live.nextUnreachedStop()?.code,
+                                    arrivalAlarmMinutes = arrivalAlarmMinutes,
+                                    alarmTriggerAt = alarmTriggerAt,
+                                    approachEnabled = approachWatchEnabled,
+                                    onSelectArrivalMinutes = { minutes ->
+                                        haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                        viewModel.scheduleArrivalAlarm(appContext, minutes)
+                                    },
+                                    onCancelArrivalAlarm = {
+                                        haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                        viewModel.cancelArrivalAlarm(appContext)
+                                    },
+                                    onToggleApproach = { enabled ->
+                                        haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                        viewModel.setApproachWatch(appContext, enabled)
+                                    },
                                 )
                             }
                             item(key = "timeline") {
@@ -615,6 +703,21 @@ fun TrainDetailScreen(
     // Per-stop coach composition sheet.
     coachStop?.let { stop ->
         CoachStopSheet(stop = stop, onDismiss = { coachStop = null })
+    }
+
+    // First-Go-live onboarding sheet.
+    if (showOnboarding) {
+        TrackingOnboardingSheet(
+            requirements = onboardingMissing,
+            onConfirm = {
+                showOnboarding = false
+                scope.launch {
+                    SettingsStore.setLiveTrackingOnboardingShown(appContext, true)
+                }
+                viewModel.startLiveTracking(appContext)
+            },
+            onDismiss = { showOnboarding = false },
+        )
     }
 }
 

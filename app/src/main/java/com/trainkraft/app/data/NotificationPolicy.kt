@@ -123,6 +123,72 @@ object NotificationPolicy {
         }
     }
 
+    /**
+     * Station-approach evaluation for a watched station (Phase C alarms).
+     *
+     * Silent unless [watchStationCode] is set and unnotified: notifies when
+     * the train is at/near the watched station ([stationMatches] on last or
+     * next station) or within [thresholdMin] minutes of predicted arrival
+     * (with a 2-min overdue grace for event lag). [alarmFired] bypasses the
+     * gates for the AlarmManager one-shot path (the fire time already encodes
+     * the prediction). One-shot semantics are enforced by the caller via
+     * [TrackedTrainEntity.lastApproachFor] — see TrackingDao.markApproachNotified.
+     */
+    const val APPROACH_THRESHOLD_MIN = 15
+
+    fun evaluateApproach(
+        trainNumber: String,
+        watchStationCode: String?,
+        current: PollSnapshot,
+        minutesUntilArrival: Int?,
+        priorApproachFor: String?,
+        thresholdMin: Int = APPROACH_THRESHOLD_MIN,
+        alarmFired: Boolean = false,
+    ): Decision {
+        val watch = watchStationCode?.trim().orEmpty()
+        if (watch.isEmpty()) return Decision.Silent
+        if (priorApproachFor?.trim().equals(watch, ignoreCase = true)) return Decision.Silent
+        if (alarmFired) {
+            return Decision.Notify(
+                title = "Train $trainNumber — approaching $watch",
+                body = "Scheduled alert · ${body(current)}",
+            )
+        }
+        val stationHit = listOf(current.lastStation, current.nextStation).any {
+            it.isNotBlank() && stationMatches(watch, it)
+        }
+        val timeHit = minutesUntilArrival != null &&
+            minutesUntilArrival <= thresholdMin && minutesUntilArrival >= -2
+        return if (stationHit || timeHit) {
+            Decision.Notify(
+                title = "Train $trainNumber — approaching $watch",
+                body = if (timeHit && !stationHit && minutesUntilArrival != null) {
+                    "About $minutesUntilArrival min away · ${body(current)}"
+                } else {
+                    body(current)
+                },
+            )
+        } else {
+            Decision.Silent
+        }
+    }
+
+    /**
+     * Completion/cancellation check for alarm sheets (peer-consumable):
+     * delegates to [decide] with no prior so only terminal states notify.
+     * The service/receiver path keeps using [decide] directly (wiring it here
+     * as well would duplicate completion handling).
+     */
+    fun evaluateArrival(trainNumber: String, current: PollSnapshot): Decision {
+        if (!isCompleted(current) && !isCancelled(current.statusText)) return Decision.Silent
+        return decide(trainNumber, current, null)
+    }
+
+    private fun stationMatches(watch: String, station: String): Boolean =
+        station.equals(watch, ignoreCase = true) ||
+            station.contains(watch, ignoreCase = true) ||
+            watch.contains(station, ignoreCase = true)
+
     private fun body(s: PollSnapshot): String = buildString {
         if (s.delayMin > 0) append("${s.delayMin} min late · ")
         if (s.lastStation.isNotEmpty()) append("At ${s.lastStation}")

@@ -90,9 +90,34 @@ object TrainKraftDestinations {
     }
 }
 
+/**
+ * Notification-tap extra → detail route input. Returns the trimmed train
+ * number when valid, null otherwise (blank, malformed, or wrong shape —
+ * the NavHost then stays on home). Unit-tested.
+ */
+fun parseDeepLinkTrainNumber(extra: String?): String? {
+    val trimmed = extra?.trim().orEmpty()
+    return if (trimmed.isNotEmpty() && TrainKraftDestinations.isValidTrainNumber(trimmed)) {
+        trimmed
+    } else {
+        null
+    }
+}
+
 @Composable
-fun TrainKraftNavHost() {
+fun TrainKraftNavHost(deepLinkTrainNumber: String? = null) {
     val navController = rememberNavController()
+    // Notification-tap routing: service/receiver notifications carry
+    // EXTRA_TRAIN_NUMBER into MainActivity, which forwards it here. Mirrors
+    // the existing search→detail navigation call (same route, launchSingleTop).
+    androidx.compose.runtime.LaunchedEffect(deepLinkTrainNumber) {
+        val number = deepLinkTrainNumber
+        if (number != null && TrainKraftDestinations.isValidTrainNumber(number)) {
+            navController.navigate(TrainKraftDestinations.trainDetail(number)) {
+                launchSingleTop = true
+            }
+        }
+    }
     NavHost(
         navController = navController,
         startDestination = TrainKraftDestinations.SEARCH,

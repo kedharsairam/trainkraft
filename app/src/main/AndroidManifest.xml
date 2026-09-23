@@ -37,6 +37,11 @@
          (see travel-mode note above). -->
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
 
+    <!-- Phase C — tracking foreground service (dataSync: NTES polling).
+         The location type (Phase D travel-mode GPS) gets its own service
+         entry later; this one never touches GPS. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+
     <application
         android:name=".TrainKraftApp"
         android:allowBackup="true"
@@ -60,5 +65,18 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <service
+            android:name=".TrackingService"
+            android:foregroundServiceType="dataSync"
+            android:exported="false" />
+
+        <receiver
+            android:name=".AlarmReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.trainkraft.app.action.STATION_ALARM" />
+            </intent-filter>
+        </receiver>
     </application>
 </manifest>
