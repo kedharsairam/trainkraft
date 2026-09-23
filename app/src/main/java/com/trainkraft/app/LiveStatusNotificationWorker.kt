@@ -1,6 +1,7 @@
 package com.trainkraft.app
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
@@ -17,7 +18,15 @@ import androidx.work.WorkerParameters
 import androidx.work.workDataOf
 import com.trainkraft.app.data.NtesApi
 import com.trainkraft.app.data.NtesConfig
+import com.trainkraft.app.data.NotificationPolicy
+import com.trainkraft.app.data.PollSnapshot
+import com.trainkraft.app.data.TrainDatabase
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import org.json.JSONObject
+import java.io.IOException
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -25,12 +34,19 @@ import java.util.TimeZone
 import java.util.concurrent.TimeUnit
 
 /**
- * Background worker that polls NTES live status every 10 minutes
- * and posts a notification when the train is delayed or approaching a station.
+ * Background worker that polls NTES live status every 10 minutes and posts a
+ * notification ONLY on meaningful changes (see [NotificationPolicy]):
+ * delay-category deterioration, big shift inside SEVERE, cancellation, or
+ * journey completion. Silent polls just update the stored diff state.
+ *
+ * Failure handling: transient network errors return [Result.retry] (backoff)
+ * instead of being swallowed as success; a train that's no longer tracked
+ * self-cancels the unique work; journey completion deletes the tracked row
+ * (bell turns off) and stops the worker.
  *
  * Usage:
- *   LiveStatusNotification.start(context, "12952")
- *   LiveStatusNotification.stop(context)
+ *   LiveStatusNotificationWorker.start(context, "12952")
+ *   LiveStatusNotificationWorker.stop(context, "12952")
  */
 class LiveStatusNotificationWorker(
     context: Context,
@@ -62,6 +78,24 @@ class LiveStatusNotificationWorker(
                 .cancelUniqueWork(WORK_NAME_PREFIX + trainNumber)
         }
 
+        /**
+         * Re-enqueues workers for every persisted tracked train. WorkManager
+         * normally survives process death, but restores from device backup
+         * (or a forced stop during an app update) can leave rows without
+         * scheduled work — idempotent thanks to KEEP, so always safe.
+         */
+        fun restoreTracked(context: Context) {
+            val appContext = context.applicationContext
+            CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+                try {
+                    val dao = TrainDatabase.getInstance(appContext).trackingDao()
+                    dao.getAll().forEach { start(appContext, it.trainNumber) }
+                } catch (_: Exception) {
+                    // DB may not be ready on very first launch — VM paths re-enqueue on toggle.
+                }
+            }
+        }
+
         private fun createNotificationChannel(context: Context) {
             val channel = NotificationChannel(
                 CHANNEL_ID,
@@ -78,67 +112,80 @@ class LiveStatusNotificationWorker(
     override suspend fun doWork(): Result {
         val trainNumber = inputData.getString(TRAIN_NUMBER_KEY) ?: return Result.failure()
 
-        // Check notification permission (Android 13+)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            if (ContextCompat.checkSelfPermission(
-                    applicationContext,
-                    Manifest.permission.POST_NOTIFICATIONS,
-                ) != PackageManager.PERMISSION_GRANTED
-            ) {
-                return Result.success() // Can't post, but don't fail
-            }
+        if (!notificationsAllowed()) return Result.success()
+
+        val dao = TrainDatabase.getInstance(applicationContext).trackingDao()
+        val tracked = dao.get(trainNumber)
+        if (tracked == null) {
+            // Untracked elsewhere (completion delete, backup restore drift): silence.
+            stop(applicationContext, trainNumber)
+            return Result.success()
         }
 
         return try {
-            val dateFormat = SimpleDateFormat("dd-MMM-yyyy", Locale.ENGLISH).apply {
+            val date = SimpleDateFormat("dd-MMM-yyyy", Locale.ENGLISH).apply {
                 timeZone = TimeZone.getTimeZone("Asia/Kolkata")
-            }
-            val date = dateFormat.format(Date()).uppercase(Locale.ENGLISH)
+            }.format(Date()).uppercase(Locale.ENGLISH)
+
             val keys = NtesConfig.getKeys(applicationContext)
-            val result = NtesApi.liveStatus(trainNumber, date, keys)
+            val json = NtesApi.liveStatus(trainNumber, date, keys)
+                .getOrElse { return Result.retry() }
 
-            result.onSuccess { json ->
-                val parsed = JSONObject(json)
-                val status = parsed.optString("CPOS", parsed.optString("LASTUPD", ""))
-                val delay = parsed.optString("LDEL", "0").toIntOrNull() ?: 0
-                val lastStation = parsed.optString("LSTNN", parsed.optString("LSTN", ""))
-                val nextStation = parsed.optString("NSTNN", parsed.optString("NSTN", ""))
+            val snapshot = parseSnapshot(json)
+            val decision = NotificationPolicy.decide(trainNumber, snapshot, tracked)
+            val category = NotificationPolicy.delayCategory(snapshot.delayMin).name
+            val now = System.currentTimeMillis()
 
-                // Only notify if delayed or at a station
-                if (delay > 0 || lastStation.isNotEmpty()) {
-                    val title = if (delay > 0) {
-                        "Train $trainNumber — ${delay}min late"
+            when (decision) {
+                is NotificationPolicy.Decision.Notify -> {
+                    postNotification(trainNumber, decision.title, decision.body)
+                    if (decision.journeyOver) {
+                        dao.delete(trainNumber)
+                        stop(applicationContext, trainNumber)
                     } else {
-                        "Train $trainNumber"
+                        dao.updatePollState(trainNumber, snapshot.delayMin, snapshot.lastStation, category, now)
                     }
-                    val body = buildString {
-                        if (lastStation.isNotEmpty()) append("At $lastStation")
-                        if (nextStation.isNotEmpty()) {
-                            if (isNotEmpty()) append(" · ")
-                            append("Next: $nextStation")
-                        }
-                        if (isEmpty()) append(status)
-                    }
-                    postNotification(trainNumber, title, body)
+                }
+                NotificationPolicy.Decision.Silent -> {
+                    dao.updatePollState(trainNumber, snapshot.delayMin, snapshot.lastStation, category, now)
                 }
             }
             Result.success()
+        } catch (e: IOException) {
+            Result.retry()
         } catch (_: Exception) {
-            Result.success() // Don't retry — network may be unavailable
+            // Config/parse problem — don't spin the scheduler on retry.
+            Result.success()
         }
     }
 
+    private fun parseSnapshot(json: String): PollSnapshot {
+        val o = JSONObject(json)
+        return PollSnapshot(
+            delayMin = o.optString("LDEL", "0").toIntOrNull() ?: 0,
+            lastStation = o.optString("LSTNN", o.optString("LSTN", "")),
+            nextStation = o.optString("NSTNN", o.optString("NSTN", "")),
+            statusText = o.optString("CPOS", o.optString("LASTUPD", "")),
+            runState = o.optInt("TRUNST", -1),
+            arrivedAtDest = o.optBoolean("isArrDSTN", false),
+        )
+    }
+
+    private fun notificationsAllowed(): Boolean =
+        Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+            ContextCompat.checkSelfPermission(
+                applicationContext,
+                Manifest.permission.POST_NOTIFICATIONS,
+            ) == PackageManager.PERMISSION_GRANTED
+
+    /**
+     * Posts the notification. [notificationsAllowed] already verifies the
+     * revocable POST_NOTIFICATIONS permission (notify() itself would throw);
+     * lint can't prove that across the helper boundary, hence the suppression.
+     */
+    @SuppressLint("MissingPermission")
     private fun postNotification(trainNumber: String, title: String, body: String) {
-        // Check permission before posting (Android 13+)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            if (ContextCompat.checkSelfPermission(
-                    applicationContext,
-                    Manifest.permission.POST_NOTIFICATIONS,
-                ) != PackageManager.PERMISSION_GRANTED
-            ) {
-                return
-            }
-        }
+        if (!notificationsAllowed()) return
 
         val notification = NotificationCompat.Builder(applicationContext, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_menu_recent_history)

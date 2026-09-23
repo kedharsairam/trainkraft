@@ -94,6 +94,8 @@ fun BetweenScreen(
     val results by viewModel.results.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val error by viewModel.error.collectAsState()
+    val source by viewModel.source.collectAsState()
+    val sourceAgeMs by viewModel.sourceAgeMs.collectAsState()
 
     val use24h by remember(appContext) {
         SettingsStore.use24hFlow(appContext)
@@ -222,6 +224,18 @@ fun BetweenScreen(
                         Text(
                             text = "${fromStation?.code} → ${toStation?.code}",
                             style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        // Source honesty badge.
+                        Text(
+                            text = when (source) {
+                                DataSource.LIVE -> "Live · NTES now"
+                                DataSource.CACHED -> sourceAgeMs?.let {
+                                    "Cached NTES · updated ${formatAge(it)}"
+                                } ?: "Cached NTES response"
+                                DataSource.OFFLINE -> "Offline schedule · GTFS snapshot Aug 2026"
+                            },
+                            style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }

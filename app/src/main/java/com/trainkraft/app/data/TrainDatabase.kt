@@ -4,24 +4,26 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 
 /**
- * TrainKraft timetable database, version 2.
+ * TrainKraft timetable database, version 3.
  *
  * Entities mirror the GTFS source (columns verified by caller):
  * stops.txt -> [StationEntity], routes.txt -> [TrainEntity],
  * trips.txt -> [TripEntity], calendar.txt -> [CalendarEntity],
  * stop_times.txt -> [StopTimeEntity]. No FTS (device SQLite lacks fts5).
+ * v3 adds app-state tables: [TrackedTrainEntity] (followed trains) and
+ * [CachedResponseEntity] (offline response cache).
  *
  * Pre-population: [Room.databaseBuilder.createFromAsset]("trains.db") is
  * wired in [getInstance] so dropping a `trains.db` file into
- * `app/src/main/assets/` just works. Until the asset exists, do NOT call
- * getInstance() on a fresh install (Room throws for a missing asset);
- * schema/DAO verification via assembleDebug is unaffected.
+ * `app/src/main/assets/` just works.
  *
- * [fallbackToDestructiveMigration] is enabled (no-arg, allows destructive
- * rebuild) for pre-release iteration; replace with real migrations once
- * the DB ships to users.
+ * Migrations: 2 -> 3 is a real migration ([MIGRATION_2_3]) that only
+ * CREATEs the new state tables — existing timetable data survives. The
+ * destructive fallback remains solely for the legacy 1 -> 2 pre-release bump.
  */
 @Database(
     entities = [
@@ -29,18 +31,42 @@ import androidx.room.RoomDatabase
         TrainEntity::class,
         TripEntity::class,
         CalendarEntity::class,
-        StopTimeEntity::class
+        StopTimeEntity::class,
+        TrackedTrainEntity::class,
+        CachedResponseEntity::class,
     ],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 abstract class TrainDatabase : RoomDatabase() {
 
     abstract fun trainDao(): TrainDao
+    abstract fun trackingDao(): TrackingDao
+    abstract fun cacheDao(): CacheDao
 
     companion object {
         const val ASSET_NAME = "trains.db"
         const val DB_NAME = "trains.db"
+
+        private val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `tracked_trains` (" +
+                        "`trainNumber` TEXT NOT NULL PRIMARY KEY, " +
+                        "`trackedAt` INTEGER NOT NULL, " +
+                        "`lastDelayMin` INTEGER, " +
+                        "`lastStation` TEXT, " +
+                        "`lastCategory` TEXT, " +
+                        "`lastPollAt` INTEGER)"
+                )
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `cached_responses` (" +
+                        "`cacheKey` TEXT NOT NULL PRIMARY KEY, " +
+                        "`json` TEXT NOT NULL, " +
+                        "`fetchedAt` INTEGER NOT NULL)"
+                )
+            }
+        }
 
         @Volatile
         private var INSTANCE: TrainDatabase? = null
@@ -53,6 +79,7 @@ abstract class TrainDatabase : RoomDatabase() {
                     DB_NAME
                 )
                     .createFromAsset(ASSET_NAME)
+                    .addMigrations(MIGRATION_2_3)
                     .fallbackToDestructiveMigration(dropAllTables = true)
                     .build()
                 INSTANCE = instance

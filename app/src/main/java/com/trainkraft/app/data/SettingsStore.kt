@@ -6,6 +6,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 
 private val Context.settingsDataStore by preferencesDataStore(name = "trainkraft_settings")
@@ -41,6 +42,13 @@ object SettingsStore {
         context.settingsDataStore.data.map { prefs ->
             prefs[KEY_CACHE_DURATION_HOURS] ?: DEFAULT_CACHE_DURATION_HOURS
         }
+
+    /**
+     * One-shot read of the offline-fallback window, in ms. This wires the
+     * previously dead `cache_duration_hours` setting into [ResponseCache].
+     */
+    suspend fun cacheDurationMs(context: Context): Long =
+        cacheDurationHoursFlow(context).first() * 60L * 60L * 1000L
 
     suspend fun setAutoRefreshLive(context: Context, enabled: Boolean) {
         context.settingsDataStore.edit { prefs ->

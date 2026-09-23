@@ -128,4 +128,91 @@ object NtesApi {
             keys,
         )
 
+    /**
+     * Live station board: trains at [stationCode] over the next [hours] hours.
+     * Returns the raw decrypted JSON string.
+     */
+    suspend fun trainsAtStation(
+        stationCode: String,
+        hours: Int = 2,
+        keys: NtesKeys = NtesKeys(),
+    ): Result<String> =
+        request(
+            "service=TrainRunningMob&subService=TrainsAtStationJson" +
+                "&jStation=$stationCode&nHr=$hours&jToStation=",
+            keys,
+        )
+
+    /**
+     * Trains running between [fromCode] and [toCode] (live NTES view).
+     * [trainType] is a 3-letter category filter; "XXX" means all.
+     * Returns the raw decrypted JSON string.
+     */
+    suspend fun trainsBetween(
+        fromCode: String,
+        toCode: String,
+        trainType: String = "XXX",
+        keys: NtesKeys = NtesKeys(),
+    ): Result<String> =
+        request(
+            "service=TrainRunningMob&subService=TrainBtwStnJson" +
+                "&stnFrom=$fromCode&stnTo=$toCode&trainType=$trainType",
+            keys,
+        )
+
+    /**
+     * Official running schedule for [trainNumber]; [startDate] is
+     * DD-MMM-YYYY (e.g. "18-SEP-2026") or empty for the default.
+     * Returns the raw decrypted JSON string.
+     */
+    suspend fun trainSchedule(
+        trainNumber: String,
+        startDate: String = "",
+        keys: NtesKeys = NtesKeys(),
+    ): Result<String> =
+        request(
+            "service=TrainRunningMob&subService=GetTrainSchedule" +
+                "&trainNo=$trainNumber&startDate=$startDate",
+            keys,
+        )
+
+    /**
+     * Train search by number or name fragment (FindTrainJson).
+     * Returns the raw decrypted JSON string.
+     */
+    suspend fun findTrain(
+        query: String,
+        keys: NtesKeys = NtesKeys(),
+    ): Result<String> =
+        request(
+            "service=TrainRunningMob&subService=FindTrainJson&trainNo=$query",
+            keys,
+        )
+
+    /**
+     * Service exceptions (cancellations / diversions) for [trainNumber].
+     * Returns the raw decrypted JSON string.
+     */
+    suspend fun trainExceptions(
+        trainNumber: String,
+        keys: NtesKeys = NtesKeys(),
+    ): Result<String> =
+        request(
+            "service=TrainRunningMob&subService=TrainExcpInfo&trainNo=$trainNumber",
+            keys,
+        )
+
+    /**
+     * Train instance metadata (number / name / type).
+     * Returns the raw decrypted JSON string.
+     */
+    suspend fun trainInstance(
+        trainNumber: String,
+        keys: NtesKeys = NtesKeys(),
+    ): Result<String> =
+        request(
+            "service=TrainRunningMob&subService=GetTrainInstance&trainNo=$trainNumber",
+            keys,
+        )
+
 }

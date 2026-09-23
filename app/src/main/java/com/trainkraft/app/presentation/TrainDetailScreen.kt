@@ -85,6 +85,7 @@ import com.kraft.ui.tokens.KraftConstants
 import com.kraft.ui.tokens.KraftIconSize
 import com.kraft.ui.tokens.KraftRadius
 import com.kraft.ui.tokens.KraftSpacing
+import com.trainkraft.app.data.LiveStatusDto
 import com.trainkraft.app.data.SettingsStore
 
 import java.text.SimpleDateFormat
@@ -116,13 +117,16 @@ fun TrainDetailScreen(
     val train by viewModel.train.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val dbError by viewModel.dbError.collectAsState()
-    val liveStatusJson by viewModel.liveStatusJson.collectAsState()
+    val liveStatus by viewModel.liveStatus.collectAsState()
+    val liveCachedAgeMs by viewModel.liveCachedAgeMs.collectAsState()
     val liveError by viewModel.liveError.collectAsState()
     val isLiveLoading by viewModel.isLiveLoading.collectAsState()
     val selectedDate by viewModel.selectedDate.collectAsState()
-    val avgDelayJson by viewModel.avgDelayJson.collectAsState()
+    val avgDelay by viewModel.avgDelay.collectAsState()
+    val avgDelayError by viewModel.avgDelayError.collectAsState()
     val isAvgDelayLoading by viewModel.isAvgDelayLoading.collectAsState()
     val isTracking by viewModel.isTracking.collectAsState()
+    val isOfficialSchedule by viewModel.isOfficialSchedule.collectAsState()
 
     // Notification permission launcher (Android 13+)
     val notifPermissionLauncher = rememberLauncherForActivityResult(
@@ -143,21 +147,25 @@ fun TrainDetailScreen(
         SettingsStore.autoRefreshLiveFlow(appContext)
     }.collectAsState(initial = SettingsStore.DEFAULT_AUTO_REFRESH_LIVE)
     LaunchedEffect(autoRefresh, schedule) {
-        if (autoRefresh && schedule.isNotEmpty() && liveStatusJson == null && liveError == null && !isLiveLoading) {
+        if (autoRefresh && schedule.isNotEmpty() && liveStatus == null && liveError == null && !isLiveLoading) {
             viewModel.refreshLiveStatus()
         }
     }
 
     // Load average delay after live status loads
-    LaunchedEffect(liveStatusJson) {
-        if (liveStatusJson != null && avgDelayJson == null && !isAvgDelayLoading) {
+    LaunchedEffect(liveStatus) {
+        if (liveStatus != null && avgDelay == null && !isAvgDelayLoading) {
             viewModel.loadAvgDelay()
         }
     }
 
-    val liveUpdatedLabel = remember(liveStatusJson) {
-        if (liveStatusJson == null) null
-        else SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
+    val liveUpdatedLabel = remember(liveStatus, liveCachedAgeMs) {
+        when {
+            liveStatus == null -> null
+            // Served from cache after a network failure — say so, honestly.
+            liveCachedAgeMs != null -> "Cached \u00b7 " + formatAge(liveCachedAgeMs!!)
+            else -> SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
+        }
     }
 
     // Date picker dialog
@@ -269,19 +277,19 @@ fun TrainDetailScreen(
                                 type = train?.type,
                                 stopCount = schedule.size,
                                 isLiveLoading = isLiveLoading,
-                                hasLiveData = liveStatusJson != null && liveError == null,
+                                hasLiveData = liveStatus != null && liveError == null,
                                 onLiveStatus = {
                                     haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                     viewModel.refreshLiveStatus()
                                 },
                             )
                         }
-                        if (isLiveLoading || liveError != null || liveStatusJson != null) {
+                        if (isLiveLoading || liveError != null || liveStatus != null) {
                             item(key = "live") {
                                 LiveStatusCard(
                                     isLiveLoading = isLiveLoading,
                                     liveError = liveError,
-                                    liveStatusJson = liveStatusJson,
+                                    liveStatus = liveStatus,
                                     updatedLabel = liveUpdatedLabel,
                                     selectedDate = selectedDate,
                                     onRetry = {
@@ -292,23 +300,50 @@ fun TrainDetailScreen(
                             }
                         }
                         // Coach position section
-                        if (liveStatusJson != null && liveError == null) {
+                        if (liveStatus != null && liveError == null) {
                             item(key = "coach-position") {
-                                CoachPositionSection(json = liveStatusJson!!)
+                                CoachPositionSection(data = liveStatus!!)
                             }
                         }
                         // Average delay section
-                        if (avgDelayJson != null || isAvgDelayLoading) {
+                        if (avgDelay != null || isAvgDelayLoading) {
                             item(key = "avg-delay") {
                                 AvgDelaySection(
-                                    json = avgDelayJson,
+                                    data = avgDelay,
                                     isLoading = isAvgDelayLoading,
                                     use24h = use24h,
                                 )
                             }
                         }
+                        // Minimal honesty note when average-delay data can't load.
+                        if (avgDelay == null && avgDelayError != null && !isAvgDelayLoading) {
+                            item(key = "avg-delay-error") {
+                                Text(
+                                    text = avgDelayError ?: "",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(
+                                        horizontal = KraftSpacing.Spacing16,
+                                        vertical = KraftSpacing.Spacing4,
+                                    ),
+                                )
+                            }
+                        }
                         item(key = "stops-header") {
-                            SectionHeader(text = "Stops \u00b7 ${schedule.size}")
+                            Column {
+                                SectionHeader(text = "Stops \u00b7 ${schedule.size}")
+                                // Official-schedule provenance (GTFS snapshot gap).
+                                if (isOfficialSchedule) {
+                                    Text(
+                                        text = "Official schedule via NTES \u00b7 not in the offline snapshot",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.padding(
+                                            horizontal = KraftSpacing.Spacing16,
+                                        ),
+                                    )
+                                }
+                            }
                         }
                         itemsIndexed(schedule, key = { _, stop -> "stop-${stop.seq}" }) { index, stop ->
                             ScheduleStopRow(
@@ -517,7 +552,7 @@ private fun TrainHeroCard(
 private fun LiveStatusCard(
     isLiveLoading: Boolean,
     liveError: String?,
-    liveStatusJson: String?,
+    liveStatus: LiveStatusDto?,
     updatedLabel: String?,
     selectedDate: String?,
     onRetry: () -> Unit,
@@ -547,7 +582,7 @@ private fun LiveStatusCard(
                     color = MaterialTheme.colorScheme.primary,
                 )
             }
-            if (updatedLabel != null && liveStatusJson != null && liveError == null && !isLiveLoading) {
+            if (updatedLabel != null && liveStatus != null && liveError == null && !isLiveLoading) {
                 Text(
                     text = "Updated $updatedLabel",
                     style = MaterialTheme.typography.labelSmall,
@@ -601,8 +636,8 @@ private fun LiveStatusCard(
                 )
             }
         }
-        if (liveStatusJson != null && liveError == null && !isLiveLoading) {
-            LiveParsedCard(json = liveStatusJson)
+        if (liveStatus != null && liveError == null && !isLiveLoading) {
+            LiveStatusContent(data = liveStatus)
         }
     }
 }
