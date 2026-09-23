@@ -74,34 +74,6 @@ class TravelMathTest {
         assertEquals(60.0, smoothedSpeedKmh(listOf(FixSample(60.0, 50f)))!!, 1e-9)
     }
 
-    // ------------------------------------------------------------ ETA
-
-    @Test
-    fun `ETA divides distance by speed`() {
-        // 30 km at 60 km/h → 30 min.
-        assertEquals(30.0, liveEtaMin(30.0, 60.0)!!, 1e-9)
-    }
-
-    @Test
-    fun `ETA below 8 kmh is null — stationary reads waiting`() {
-        assertNull(liveEtaMin(30.0, 7.9))
-        assertNull(liveEtaMin(30.0, 0.0))
-    }
-
-    @Test
-    fun `ETA at exactly 8 kmh is valid`() {
-        // 8 km in 8 km/h → 60 min.
-        assertEquals(60.0, liveEtaMin(8.0, 8.0)!!, 1e-9)
-    }
-
-    @Test
-    fun `ETA rejects non-positive and non-finite input`() {
-        assertNull(liveEtaMin(0.0, 60.0))
-        assertNull(liveEtaMin(-5.0, 60.0))
-        assertNull(liveEtaMin(Double.NaN, 60.0))
-        assertNull(liveEtaMin(30.0, Double.POSITIVE_INFINITY))
-    }
-
     // ------------------------------------------------------------ arrival
 
     @Test

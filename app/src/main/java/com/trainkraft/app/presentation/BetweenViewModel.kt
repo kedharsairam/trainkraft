@@ -30,7 +30,6 @@ class BetweenViewModel(
 ) : AndroidViewModel(application) {
 
     private val dao = TrainDatabase.getInstance(application).trainDao()
-    private val packDao = TrainDatabase.getInstance(application).packDao()
     private val repo = (application as? TrainKraftApp)?.container?.ntesRepository
 
     // Station pickers
@@ -98,22 +97,6 @@ class BetweenViewModel(
 
     private val _uiState = MutableStateFlow<BetweenUiState>(BetweenUiState.Idle)
     val uiState: StateFlow<BetweenUiState> = _uiState.asStateFlow()
-
-    /**
-     * Typical arrival delay at the destination stop, per train number
-     * (pack `arrAvgMin`; absent key = no pack row = no badge, never invented).
-     * Loaded once per results payload — one local-DB DAO call per train
-     * ([PackDao.priorForStation]), which is cheap enough to stay inline; the
-     * whole batch silent-fails to an empty map.
-     */
-    private val _usualDelays = MutableStateFlow<Map<String, Int>>(emptyMap())
-    val usualDelays: StateFlow<Map<String, Int>> = _usualDelays.asStateFlow()
-
-    init {
-        // Pack rows load with the badge batch below; the pack file itself is
-        // bootstrapped once in AppContainer.database. Absent pack = no rows
-        // = no badges, never invented.
-    }
 
     private var fromSearchJob: Job? = null
     private var toSearchJob: Job? = null
@@ -255,7 +238,6 @@ class BetweenViewModel(
                 _selectedDate.value = LocalDate.now()
                 _typeFilter.value = null
                 _uiState.value = BetweenUiState.Results(_results.value)
-                loadUsualDelays(enriched.orEmpty())
             } catch (e: Exception) {
                 if (BuildConfig.DEBUG) {
                     Log.e("BetweenVM", "search failed", e)
@@ -286,32 +268,6 @@ class BetweenViewModel(
     ): List<BetweenUiRow> = dto.trains.mapNotNull { t ->
         mapLiveRow(t, from.code, from.name, to.code, to.name)
     }.sortedWith(compareBy({ it.depMin }, { it.trainNumber }))
-
-    /**
-     * Batch-loads destination arrival priors for one results payload: one
-     * [PackDao.priorForStation] call per train (local DB — no batching layer
-     * needed), keyed by train number. Silent-fails to an empty map; a missing
-     * row simply yields no badge for that card.
-     */
-    private fun loadUsualDelays(rows: List<BetweenUiRow>) {
-        _usualDelays.value = emptyMap()
-        if (rows.isEmpty()) return
-        viewModelScope.launch {
-            try {
-                val map = mutableMapOf<String, Int>()
-                for (row in rows) {
-                    val prior = packDao.priorForStation(row.trainNumber, row.toCode)
-                    if (prior != null) map[row.trainNumber] = prior.arrAvgMin
-                }
-                _usualDelays.value = map
-            } catch (e: Exception) {
-                if (BuildConfig.DEBUG) {
-                    Log.e("BetweenVM", "usual delays failed: ${e.message}")
-                }
-                _usualDelays.value = emptyMap()
-            }
-        }
-    }
 
     class Factory(
         private val application: Application,
@@ -395,5 +351,3 @@ fun List<BetweenUiRow>.toBetweenResults(): List<BetweenResult> = map { row ->
         arrDayOffset = row.arrDayOffset,
     )
 }
-// Note: usualDelayBadgeLabel lives in BetweenLogic.kt (shared with the
-// station board); usualDelayForStation maps priorsForTrain rows to a station.

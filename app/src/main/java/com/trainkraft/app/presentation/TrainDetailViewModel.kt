@@ -111,17 +111,6 @@ class TrainDetailViewModel(
     private val _exceptions = MutableStateFlow<TrainExcpDto?>(null)
     val exceptions: StateFlow<TrainExcpDto?> = _exceptions.asStateFlow()
 
-    // --- Average delay (typed) ---
-    private val _avgDelay = MutableStateFlow<AvgDelayDto?>(null)
-    val avgDelay: StateFlow<AvgDelayDto?> = _avgDelay.asStateFlow()
-
-    /** Minimal surfacing when average-delay data can't be loaded. */
-    private val _avgDelayError = MutableStateFlow<String?>(null)
-    val avgDelayError: StateFlow<String?> = _avgDelayError.asStateFlow()
-
-    private val _isAvgDelayLoading = MutableStateFlow(false)
-    val isAvgDelayLoading: StateFlow<Boolean> = _isAvgDelayLoading.asStateFlow()
-
     // --- Notification tracking (persisted; see TrackingDao) ---
     private val _isTracking = MutableStateFlow(false)
     val isTracking: StateFlow<Boolean> = _isTracking.asStateFlow()
@@ -185,22 +174,17 @@ class TrainDetailViewModel(
     private val _notifiedStation = MutableStateFlow<String?>(null)
     val notifiedStation: StateFlow<String?> = _notifiedStation.asStateFlow()
 
-    // --- Prediction engine (Phase B; independent flow, silent-fail → null) ---
-    // Priors/fog/vintage come from the local pack tables (empty when the pack
-    // is absent — the engine handles that); predictions recompute whenever
-    // liveStatus/priors/fog change. The timeline falls back to today's
-    // server-ETA rendering whenever this flow is null — never blank.
-    private val _priors = MutableStateFlow<Map<String, DelayPriorEntity>>(emptyMap())
-    val priors: StateFlow<Map<String, DelayPriorEntity>> = _priors.asStateFlow()
-
+    // --- Pack inputs (fog overlay + data vintage; silent-fail → hidden) ---
+    // Delay priors were removed per the reality doctrine (no computed
+    // futures): the pack now carries published facts only (fog programs,
+    // special trains). Fog/vintage load here; the timeline always renders
+    // server values.
     private val _fog = MutableStateFlow<FogOverlayEntity?>(null)
+    val fog: StateFlow<FogOverlayEntity?> = _fog.asStateFlow()
 
-    /** Full vintage caption (`"delay data · Sep 2026"`); null = pack absent → hidden. */
+    /** Full vintage caption (`"program data · Sep 2026"`); null = pack absent → hidden. */
     private val _packVintage = MutableStateFlow<String?>(null)
     val packVintage: StateFlow<String?> = _packVintage.asStateFlow()
-
-    private val _predictions = MutableStateFlow<JourneyPrediction?>(null)
-    val predictions: StateFlow<JourneyPrediction?> = _predictions.asStateFlow()
 
     private val _uiState = MutableStateFlow<TrainDetailUiState>(TrainDetailUiState.Loading)
     val uiState: StateFlow<TrainDetailUiState> = _uiState.asStateFlow()
@@ -216,14 +200,12 @@ class TrainDetailViewModel(
         }
         loadSchedule()
         loadSidecar()
-        // Pack rows load here; the pack file itself is bootstrapped once in
-        // AppContainer.database — then recompute predictions on arrival.
-        // The persisted watch station loads alongside (alarm rows armed in a
-        // previous screen instance render "Alarm set" without a clock).
+        // Pack rows + persisted watch load here; the pack file itself is
+        // bootstrapped once in AppContainer.database. Alarm rows armed in a
+        // previous screen instance render "Alarm set" without a clock.
         viewModelScope.launch {
             loadPackInputs()
             refreshPersistedWatch()
-            recomputePredictions()
         }
     }
 
@@ -303,9 +285,9 @@ class TrainDetailViewModel(
     }
 
     /**
-     * Honest minutes-until-next-event input for the ticker ladder: engine
-     * predictions + live stops via the service's [minutesUntilNextStop]
-     * (same math the minute loop uses). Null when unknown → 60s tick.
+     * Honest minutes-until-next-event input for the ticker ladder: live stops
+     * via the service's [minutesUntilNextStop] (same schedule/server-clock
+     * math the minute loop uses). Null when unknown → 60s tick.
      */
     private fun currentMinutesToNextEvent(): Long? {
         val live = _liveStatus.value ?: return null
@@ -316,10 +298,7 @@ class TrainDetailViewModel(
                 stops.map { it.arrived },
                 stops.map { it.departed },
             )
-            val predictedByCode = _predictions.value?.predictions
-                ?.associate { it.stationCode to it.predictedDelayMin }
-                .orEmpty()
-            minutesUntilNextStop(stops, anchor, predictedByCode, System.currentTimeMillis())
+            minutesUntilNextStop(stops, anchor, System.currentTimeMillis())
                 ?.toLong()
         } catch (_: Exception) {
             null
@@ -381,7 +360,7 @@ class TrainDetailViewModel(
         val live = _liveStatus.value ?: return
         val dest = live.destCode.trim()
         if (dest.isEmpty()) return
-        val predictedEpoch = predictedArrivalFor(live, dest, System.currentTimeMillis())
+        val predictedEpoch = serverArrivalFor(live, dest, System.currentTimeMillis())
             ?: return
         val triggerAt = AlarmScheduler.scheduleStationAlarm(
             context, trainNumber, dest, minutesBefore, predictedEpoch,
@@ -411,7 +390,7 @@ class TrainDetailViewModel(
             val next = _liveStatus.value?.nextUnreachedStop()?.code?.trim().orEmpty()
             if (enabled && next.isNotEmpty()) {
                 trackingDao?.setWatchStation(trainNumber, next.uppercase())
-                val predictedEpoch = predictedArrivalFor(
+                val predictedEpoch = serverArrivalFor(
                     _liveStatus.value!!, next, System.currentTimeMillis(),
                 )
                 if (predictedEpoch != null) {
@@ -471,7 +450,7 @@ class TrainDetailViewModel(
             return
         }
         val now = System.currentTimeMillis()
-        val predicted = predictedArrivalFor(live, key, now) ?: return
+        val predicted = serverArrivalFor(live, key, now) ?: return
         val (schedulePredicted, triggerAt) = stopAlarmEpochs(predicted, APPROACH_LEAD_MIN, now)
         AlarmScheduler.scheduleStationAlarm(
             context, trainNumber, key, APPROACH_LEAD_MIN, schedulePredicted,
@@ -487,11 +466,13 @@ class TrainDetailViewModel(
     }
 
     /**
-     * Engine-predicted arrival epoch for [stationCode]: scheduled clock +
-     * predicted delay on today's IST date (overnight +24h rollover mirrors
-     * the service helper). Null when the schedule clock is unknown.
+     * Server-based arrival epoch for [stationCode]: scheduled clock + the
+     * delay NTES itself reports for that stop (departure DDEP ?: arrival
+     * DARR ?: header LDEL), on today's IST date. Mirrors exactly what the
+     * timeline displays — alarms fire off shown numbers, never computed
+     * ones. Null when the schedule clock is unknown.
      */
-    private fun predictedArrivalFor(
+    private fun serverArrivalFor(
         live: LiveStatusDto,
         stationCode: String,
         nowMs: Long,
@@ -500,10 +481,10 @@ class TrainDetailViewModel(
             it.code.equals(stationCode, ignoreCase = true)
         } ?: return null
         val sched = stop.scheduledArrival.ifBlank { stop.scheduledDeparture }
-        val predictedDelay = _predictions.value?.predictions
-            ?.firstOrNull { it.stationCode.equals(stationCode, ignoreCase = true) }
-            ?.predictedDelayMin ?: 0
-        return predictedArrivalEpochMs(sched, predictedDelay, nowMs)
+        val serverDelay = stop.departureDelayMinutes()
+            ?: stop.arrivalDelayMinutes()
+            ?: live.delayMin
+        return predictedArrivalEpochMs(sched, serverDelay, nowMs)
     }
 
     fun loadSchedule() {
@@ -596,7 +577,6 @@ class TrainDetailViewModel(
         _liveStatus.value = null
         _liveCachedAgeMs.value = null
         _liveError.value = null
-        _predictions.value = null
         refreshLiveStatus()
     }
 
@@ -621,16 +601,13 @@ class TrainDetailViewModel(
                     is LoadResult.Live -> {
                         _liveStatus.value = result.value
                         _liveCachedAgeMs.value = null
-                        recomputePredictions()
                     }
                     is LoadResult.Offline -> {
                         _liveStatus.value = result.value
                         _liveCachedAgeMs.value = result.ageMs
-                        recomputePredictions()
                     }
                     is LoadResult.Failed -> {
                         _liveError.value = mapLiveError(result.reason)
-                        _predictions.value = null
                     }
                 }
             } catch (e: Exception) {
@@ -646,125 +623,23 @@ class TrainDetailViewModel(
         }
     }
 
-    fun loadAvgDelay() {
-        if (_isAvgDelayLoading.value) return
-        viewModelScope.launch {
-            _isAvgDelayLoading.value = true
-            _avgDelayError.value = null
-            try {
-                val r = repo ?: return@launch
-                val result = r.avgDelay(trainNumber.trim())
-                val value = when (result) {
-                    is LoadResult.Live -> result.value
-                    is LoadResult.Offline -> result.value
-                    is LoadResult.Failed -> null
-                }
-                if (value != null) {
-                    _avgDelay.value = value
-                } else {
-                    // Section renders a one-line note instead of vanishing silently.
-                    _avgDelayError.value = "Average delay unavailable right now."
-                }
-            } catch (e: Exception) {
-                if (BuildConfig.DEBUG) {
-                    Log.e("TrainDetailVM", "avgDelay exception", e)
-                }
-                _avgDelayError.value = "Average delay unavailable right now."
-            } finally {
-                _isAvgDelayLoading.value = false
-            }
-        }
-    }
-
     /**
-     * Loads Phase B pack inputs (priors map, today's fog overlay, vintage
-     * caption) from the local pack tables. Silent on every failure: a missing
-     * pack leaves the defaults (empty map, null fog, hidden caption) and the
-     * engine handles pack-absent runs itself.
+     * Loads pack inputs (today's fog overlay, vintage caption) from the local
+     * pack tables. Silent on every failure: a missing pack leaves the
+     * defaults (null fog, hidden caption) and the timeline renders server
+     * values throughout.
      */
     private suspend fun loadPackInputs() {
         try {
             val number = trainNumber.trim()
-            val rows = packDao.priorsForTrain(number)
-            _priors.value = rows.associateBy { it.stationCode.uppercase(Locale.ENGLISH) }
             _fog.value = packDao.fogForTrain(number, istTodayYMD())
             _packVintage.value = packVintageCaption(packDao.meta("generatedAt"))
         } catch (e: Exception) {
             if (BuildConfig.DEBUG) {
                 Log.d("TrainDetailVM", "pack inputs unavailable: ${e.message}")
             }
-            _priors.value = emptyMap()
             _fog.value = null
             _packVintage.value = null
-        }
-    }
-
-    /**
-     * Recomputes [predictions] from the current live status + pack inputs.
-     * Independent flow: every failure (no live data, pre-departure / completed
-     * run, unparseable server clock, engine throw) resolves to null and the UI
-     * keeps today's server-ETA rendering.
-     *
-     * Derivation (VM-side inputs per contract):
-     * - anchorIndex = [currentStopIndex] over ISA/ISD flags (null anchor, or an
-     *   anchor at the last stop with no future rows, means no call).
-     * - anchorDelayMin = anchor departure DDEP ?: arrival DARR ?: header LDEL.
-     * - anchorAgeMin = now minus the server LTIME event stamp ([anchorAgeMinutes]);
-     *   null when LTIME is unparseable → null predictions, never guessed.
-     * - elapsedMin = anchorAgeMin (LTIME is the only event-time proxy the
-     *   server gives us); schedSegMin = anchor STD → next STD in minutes
-     *   ([schedSegmentMinutes], DF day flags honored), null when unparseable
-     *   → the engine hides position, never guesses.
-     * - priors = pack map (empty when pack absent); fog = today's overlay (or
-     *   null); todayYMD = IST calendar date (`YYYY-MM-DD`, matching the fog
-     *   table's lexicographic range compare).
-     */
-    private fun recomputePredictions() {
-        try {
-            val live = _liveStatus.value ?: run {
-                _predictions.value = null
-                return
-            }
-            val stops = live.stops
-            if (stops.isEmpty()) {
-                _predictions.value = null
-                return
-            }
-            val anchor = currentStopIndex(
-                stops.map { it.arrived },
-                stops.map { it.departed },
-            ) ?: run {
-                _predictions.value = null
-                return
-            }
-            if (anchor >= stops.lastIndex) {
-                // Completed run: no future rows for the engine to correct.
-                _predictions.value = null
-                return
-            }
-            val anchorStop = stops[anchor]
-            val anchorDelay = anchorStop.departureDelayMinutes()
-                ?: anchorStop.arrivalDelayMinutes()
-                ?: live.delayMin
-            val anchorAge = anchorAgeMinutes(live.lastUpdateTime, System.currentTimeMillis())
-                ?: run {
-                    _predictions.value = null
-                    return
-                }
-            val next = stops[anchor + 1]
-            val schedSeg = schedSegmentMinutes(
-                anchorStop.scheduledDeparture, anchorStop.dayFlag,
-                next.scheduledDeparture, next.dayFlag,
-            )
-            _predictions.value = predictJourney(
-                stops, anchor, anchorDelay, anchorAge.toLong(),
-                _priors.value, _fog.value, istTodayYMD(), anchorAge.toLong(), schedSeg,
-            )
-        } catch (e: Exception) {
-            if (BuildConfig.DEBUG) {
-                Log.d("TrainDetailVM", "predictJourney failed: ${e.message}")
-            }
-            _predictions.value = null
         }
     }
 
@@ -817,10 +692,10 @@ class TrainDetailViewModel(
     }
 }
 
-// ------------------------------------------------- Phase B pure helpers
+// ------------------------------------------------- Pure helpers
 // Top-level (no Android dependencies beyond java.time) so they stay unit-
-// testable on the JVM. They encode every VM-side derivation decision for the
-// prediction-engine contract; the ViewModel only wires flows around them.
+// testable on the JVM. They encode every VM-side derivation decision; the
+// ViewModel only wires flows around them.
 
 private val IST_ZONE: ZoneId = ZoneId.of("Asia/Kolkata")
 
@@ -875,58 +750,25 @@ fun schedSegmentMinutes(
 }
 
 /**
- * Engine-wins rule for one future row: a prediction exists with confidence ≥
- * MED, the server delay is known, and the two differ by ≥ 2 min. Anything
- * else keeps today's server-ETA rendering unchanged.
+ * Fog-program notice from a published overlay entry (fog programs are
+ * published facts — cancellations and revised timings — not predictions).
+ * Null when no entry is active. The running-instance contradiction
+ * ("program says cancelled, train is moving") is framed as verify-before-
+ * travel, never asserted. Unit-tested.
  */
-fun shouldShowEnginePrediction(prediction: StopPrediction?, serverDelayMin: Int?): Boolean {
-    if (prediction == null || serverDelayMin == null) return false
-    if (prediction.confidence != PredictionConfidence.HIGH &&
-        prediction.confidence != PredictionConfidence.MED
-    ) {
-        return false
+fun fogNoticeLabel(entry: FogOverlayEntity?, running: Boolean): String? {
+    if (entry == null) return null
+    val range = "${entry.fromDate} – ${entry.toDate}"
+    return when (entry.action.trim().uppercase()) {
+        "CANCELLED" -> if (running) {
+            "Fog program lists this train cancelled $range — verify before travel"
+        } else {
+            "Fog program: cancelled $range"
+        }
+        "REVISED_TIMING" -> "Fog timetable in effect $range"
+        "REDUCED_FREQ" -> "Reduced frequency $range (fog program)"
+        else -> null
     }
-    return abs(prediction.predictedDelayMin - serverDelayMin) >= 2
-}
-
-/** Literal basis-chip vocabulary (muted in UI; freshness honesty: always adjacent when engine drives). */
-fun basisChipLabel(basis: PredictionBasis): String = when (basis) {
-    PredictionBasis.PATTERN -> "typical pattern"
-    PredictionBasis.CARRIED -> "carried"
-    PredictionBasis.SCHEDULE -> "timetable"
-}
-
-/**
- * Engine clock for a future row: scheduled minutes-of-day + predicted delay,
- * wrapped to 0..1439. Null when the schedule base is unknown (caller keeps
- * the server rendering). The UI formats the result with the user's 24h pref.
- */
-fun engineExpMinutes(schedMin: Int?, predictedDelayMin: Int): Int? {
-    if (schedMin == null) return null
-    return (((schedMin + predictedDelayMin) % 1440) + 1440) % 1440
-}
-
-/**
- * Per-future-stop priors chip (AvgDelayFootnote vocabulary family).
- * Null when no pack row exists for the stop (no chip, never invented);
- * `<= 0` means the pack says typically on time.
- */
-fun priorChipLabel(avgMin: Int?): String? = when {
-    avgMin == null -> null
-    avgMin <= 0 -> "typically on time here"
-    else -> "typically +$avgMin here"
-}
-
-/**
- * Position-marker row label. Null when [positionKm] is null (row hidden —
- * position is never guessed). Tilde is mandatory per contract.
- */
-fun positionMarkerLabel(positionKm: Int?, between: Pair<String, String>?): String? {
-    if (positionKm == null) return null
-    val leg = between?.let { (a, b) ->
-        if (a.isNotBlank() && b.isNotBlank()) " · between $a and $b" else ""
-    }.orEmpty()
-    return "~$positionKm km$leg"
 }
 
 private val vintageMonthNames = arrayOf(
@@ -953,12 +795,13 @@ fun packVintageCaption(generatedAt: String?): String? {
 // ------------------------------------------------- Phase C pure helpers
 // Top-level and unit-tested; the ViewModel only wires flows around them.
 
-/** Next-stop approach alarm lead (minutes before predicted arrival). */
+/** Next-stop approach alarm lead (minutes before the server-reported arrival). */
 const val APPROACH_LEAD_MIN = 10
 
 /**
- * Foreground ticker ladder: 30s when the next predicted event is ≤15 min
- * away, 60s within the hour, 120s beyond; null (unknown) → 60s.
+ * Foreground ticker ladder: 30s when the next scheduled/server-reported
+ * event is ≤15 min away, 60s within the hour, 120s beyond; null
+ * (unknown) → 60s.
  */
 fun tickerIntervalSec(predictedMinToNextEvent: Long?): Long = when {
     predictedMinToNextEvent == null -> 60L
@@ -1000,31 +843,31 @@ fun isServiceRunning(context: Context, serviceClass: Class<*>): Boolean {
 
 /**
  * Alarm trigger with past-clamp: fires [minutesBefore] ahead of the
- * predicted arrival, but never in the past — a stale prediction fires
- * 1s from now instead of immediately-at-schedule.
+ * server-reported arrival, but never in the past — a stale clock fires
+ * 1s from now instead of immediately.
  */
 fun alarmTriggerEpoch(
-    predictedArrivalEpochMs: Long,
+    arrivalEpochMs: Long,
     minutesBefore: Int,
     nowMs: Long,
 ): Long = maxOf(
-    AlarmScheduler.alarmTriggerAtMillis(predictedArrivalEpochMs, minutesBefore),
+    AlarmScheduler.alarmTriggerAtMillis(arrivalEpochMs, minutesBefore),
     nowMs + 1_000L,
 )
 
 /**
  * Phase E per-stop schedule epochs: the trigger is [alarmTriggerEpoch]
- * (predicted − lead, past clamped to now+1s); the predicted instant handed
- * to `scheduleStationAlarm` is trigger + lead, so the scheduler's internal
+ * (arrival − lead, past clamped to now+1s); the instant handed to
+ * `scheduleStationAlarm` is trigger + lead, so the scheduler's internal
  * `alarmTriggerAtMillis` lands exactly on the clamped trigger instead of
- * firing a stale prediction immediately.
+ * firing a stale clock immediately.
  */
 fun stopAlarmEpochs(
-    predictedArrivalEpochMs: Long,
+    arrivalEpochMs: Long,
     minutesBefore: Int,
     nowMs: Long,
 ): Pair<Long, Long> {
-    val triggerAt = alarmTriggerEpoch(predictedArrivalEpochMs, minutesBefore, nowMs)
+    val triggerAt = alarmTriggerEpoch(arrivalEpochMs, minutesBefore, nowMs)
     return (triggerAt + minutesBefore.coerceAtLeast(0) * 60_000L) to triggerAt
 }
 
@@ -1074,14 +917,14 @@ fun resolveStopAlarmDisplay(
 }
 
 /**
- * Engine-predicted arrival epoch: IST calendar date of [nowEpochMs] at
- * [schedHhmm] plus [predictedDelayMin]. Overnight rollover (+24h when the
+ * Server-reported arrival epoch: IST calendar date of [nowEpochMs] at
+ * [schedHhmm] plus [serverDelayMin]. Overnight rollover (+24h when the
  * result is >12h in the past, mirroring the service helper). Null when the
  * schedule clock is blank/unparseable — the caller skips scheduling.
  */
 fun predictedArrivalEpochMs(
     schedHhmm: String?,
-    predictedDelayMin: Int,
+    serverDelayMin: Int,
     nowEpochMs: Long,
 ): Long? {
     val base = NtesFormats.hhmmToMinutes(schedHhmm) ?: return null
@@ -1092,7 +935,7 @@ fun predictedArrivalEpochMs(
     cal.set(java.util.Calendar.MINUTE, base % 60)
     cal.set(java.util.Calendar.SECOND, 0)
     cal.set(java.util.Calendar.MILLISECOND, 0)
-    var arrival = cal.timeInMillis + predictedDelayMin.coerceAtLeast(0) * 60_000L
+    var arrival = cal.timeInMillis + serverDelayMin.coerceAtLeast(0) * 60_000L
     if (arrival < nowEpochMs - 12 * 60_000L) arrival += 24 * 60 * 60_000L
     return arrival
 }

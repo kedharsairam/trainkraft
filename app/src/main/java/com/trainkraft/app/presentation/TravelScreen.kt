@@ -64,22 +64,19 @@ import com.kraft.ui.tokens.KraftSpacing
  *   vocabulary — reusing the badge would imply server freshness we don't
  *   have. (Freshness.kt itself is untouched per scope.)
  * - Segment progress reuses [JourneyProgress] verbatim (same-package
- *   internal) — no duplicate bar. Interpolation honesty ("~") is carried by
- *   the adjacent remaining/ETA text, not the bar's integer vocabulary.
- * - No-fix-yet state shows the engine prediction + basis chip passed in by
- *   the caller ([fallbackStopLabel]/[fallbackBasisLabel] — the detail
- *   screen's existing predictions; PredictionEngine untouched).
+ *   internal) — no duplicate bar. Remaining distance ("~12 km") is a GPS
+ *   measurement, never a forecast.
+ * - No-fix-yet state reads bare "Waiting for GPS…" — no server predictions,
+ *   no fallback labels.
  * - GPS-stale (> [GPS_STALE_MS] since fix): "GPS searching…" muted, last
  *   values greyed ([TravelDisplay.dimmed]), never live-presented.
  * - Arrival pulse is static under reduce-motion ([rememberReduceMotion]).
- * - Single TalkBack announcement (speed + next + ETA in one sentence via
+ * - Single TalkBack announcement (speed + next + distance in one sentence via
  *   [TravelDisplay.announcement]); Stop is a ≥ 64dp bottom target.
  */
 @Composable
 fun TravelScreen(
     trainNumber: String,
-    fallbackStopLabel: String? = null,
-    fallbackBasisLabel: String? = null,
     onClose: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -93,7 +90,6 @@ fun TravelScreen(
     val serviceRunning by viewModel.serviceRunning.collectAsState()
 
     DisposableEffect(trainNumber) {
-        viewModel.setFallback(fallbackStopLabel, fallbackBasisLabel)
         viewModel.refreshTravelServiceState(appContext)
         viewModel.startTravelTicker()
         onDispose { viewModel.stopTravelTicker() }
@@ -144,7 +140,7 @@ fun TravelScreen(
                 }
             } else {
                 TravelGpsBadgeRow(badge = frame.badge)
-                // One merged announcement: speed + next + ETA together.
+                // One merged announcement: speed + next + distance together.
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -180,9 +176,6 @@ fun TravelScreen(
                         style = tabularFigures(MaterialTheme.typography.titleMedium),
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                    if (frame.basisLabel != null) {
-                        TravelBasisChip(text = frame.basisLabel)
-                    }
                 }
                 frame.progress?.let { (covered, total) ->
                     JourneyProgress(coveredKm = covered, totalKm = total)
@@ -271,31 +264,6 @@ private fun TravelArrivalCard(code: String) {
             style = tabularFigures(MaterialTheme.typography.titleMedium),
             fontWeight = FontWeight.SemiBold,
             modifier = Modifier.weight(1f),
-        )
-    }
-}
-
-/**
- * Engine basis chip on the no-fix fallback. [MutedChip] is private to
- * TrainDetailComponents, so this mirrors its tonal/tabular vocabulary
- * locally (documented instead of widening that file's API for one row).
- */
-@Composable
-private fun TravelBasisChip(text: String) {
-    Surface(
-        shape = RoundedCornerShape(KraftRadius.Pill),
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
-    ) {
-        Text(
-            text = text,
-            style = tabularFigures(MaterialTheme.typography.labelSmall),
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(
-                horizontal = KraftSpacing.Spacing8,
-                vertical = KraftSpacing.Spacing4,
-            ),
         )
     }
 }
