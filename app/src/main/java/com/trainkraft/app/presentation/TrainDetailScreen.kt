@@ -116,6 +116,9 @@ fun TrainDetailScreen(
     val isOfficialSchedule by viewModel.isOfficialSchedule.collectAsState()
     val instances by viewModel.instances.collectAsState()
     val exceptions by viewModel.exceptions.collectAsState()
+    val predictions by viewModel.predictions.collectAsState()
+    val priors by viewModel.priors.collectAsState()
+    val packVintage by viewModel.packVintage.collectAsState()
 
     // Notification permission launcher (Android 13+)
     val notifPermissionLauncher = rememberLauncherForActivityResult(
@@ -203,6 +206,18 @@ fun TrainDetailScreen(
                 ?.takeIf { it > 0 }
         }
     }
+
+    // Engine predictions keyed by station code (UPPERCASE — matches the VM map).
+    val predictionsByCode = remember(predictions) {
+        predictions?.predictions?.associateBy { it.stationCode.uppercase(Locale.ENGLISH) }
+            .orEmpty()
+    }
+    val positionLabel = remember(predictions) {
+        val journey = predictions ?: return@remember null
+        positionMarkerLabel(journey.positionKm, journey.positionBetween)
+    }
+    val seasonalNote = predictions?.seasonalNote?.takeIf { it.isNotBlank() }
+    val engineAlert = predictions?.serviceAlert?.takeIf { it.isNotBlank() }
 
     // Date picker dialog (fallback only — the instance strip covers dated runs).
     val showDatePicker = remember { mutableStateOf(false) }
@@ -323,6 +338,7 @@ fun TrainDetailScreen(
                                     haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                     viewModel.refreshLiveStatus()
                                 },
+                                seasonalNote = seasonalNote,
                             )
                         }
                         val live = liveStatus
@@ -333,6 +349,11 @@ fun TrainDetailScreen(
                                         coveredKm = live.distanceCoveredKm,
                                         totalKm = live.totalDistance,
                                     )
+                                }
+                            }
+                            if (positionLabel != null) {
+                                item(key = "position-marker") {
+                                    PositionMarkerRow(label = positionLabel)
                                 }
                             }
                             val runs = instances
@@ -354,6 +375,15 @@ fun TrainDetailScreen(
                                     ExceptionBanner(message = exc.alertMsg)
                                 }
                             }
+                            // Engine fog alert reuses the red banner variant — only when
+                            // no active server exception (one red banner at a time).
+                            if (engineAlert != null &&
+                                (exc == null || !exc.hasActiveException())
+                            ) {
+                                item(key = "engine-alert") {
+                                    ExceptionBanner(message = engineAlert)
+                                }
+                            }
                             item(key = "coach-position") {
                                 CoachPositionSection(
                                     data = live,
@@ -369,12 +399,23 @@ fun TrainDetailScreen(
                                             coachStop = stop
                                         }
                                     },
+                                    predictionsByCode = predictionsByCode,
+                                    priorsByCode = priors,
+                                    use24h = use24h,
                                 )
                             }
                             val footnote = avgFootnoteMin
                             if (footnote != null) {
                                 item(key = "avg-footnote") {
                                     AvgDelayFootnote(delayMinutes = footnote)
+                                }
+                            }
+                            // Pack-vintage caption once under the timeline; hidden
+                            // when the pack is absent (never "unknown").
+                            val vintage = packVintage
+                            if (vintage != null) {
+                                item(key = "pack-vintage") {
+                                    PackVintageCaption(caption = vintage)
                                 }
                             }
                         } else {
