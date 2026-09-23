@@ -15,6 +15,7 @@ import com.trainkraft.app.data.SettingsStore
 import com.trainkraft.app.data.TrackingDao
 import com.trainkraft.app.data.TrainDao
 import com.trainkraft.app.data.TrainDatabase
+import com.trainkraft.app.data.UserDataMigrator
 import com.trainkraft.app.data.UserDatabase
 
 /**
@@ -38,9 +39,12 @@ class AppContainer(context: Context) {
     private val bootstrapScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     val database: TrainDatabase by lazy {
-        // Touch first so the file (and Room's master table) already exists
-        // when trains.db's 3 -> 4 migration ATTACHes it for the one-shot copy.
+        // Touch first so the user.db file exists for later opens.
         userDatabase
+        // v3 user-data rescue BEFORE Room opens trains.db: plain framework
+        // SQLite in autocommit (ATTACH inside Room's migration transaction
+        // throws under WAL mode on-device — never again). Silent + idempotent.
+        UserDataMigrator.migrateV3UserTables(appContext)
         val instance = TrainDatabase.getInstance(appContext)
         // Pack bootstrap lives here (not in VMs): single process-once trigger
         // at the earliest DB-touching point, off the Activity init path.
@@ -58,8 +62,7 @@ class AppContainer(context: Context) {
 
     /**
      * Opened before [database] on first use (see its initializer) so the file
-     * (and Room's master table) already exists when `trains.db`'s 3 -> 4
-     * migration ATTACHes it for the one-shot user-row copy.
+     * exists for the v3 user-row rescue ([UserDataMigrator]) and later opens.
      */
     val userDatabase: UserDatabase by lazy { UserDatabase.getInstance(appContext) }
 

@@ -1,7 +1,6 @@
 package com.trainkraft.app.data
 
 import android.content.Context
-import androidx.room.Room
 import androidx.sqlite.db.SupportSQLiteDatabase
 import androidx.sqlite.db.SupportSQLiteOpenHelper
 import androidx.sqlite.db.framework.FrameworkSQLiteOpenHelperFactory
@@ -40,17 +39,14 @@ class UserDatabaseMigrationTest {
     @Before
     fun setUp() {
         context = ApplicationProvider.getApplicationContext()
-        // Same resolution Room.databaseBuilder(name) uses, so the ATTACH
-        // target and the verification open below hit the identical file.
+        // Isolated ATTACH target for the verification opens below.
         userFile = context.getDatabasePath("migration-test-user.db")
         userFile.parentFile?.mkdirs()
         userFile.delete()
-        TrainDatabase.userDbPath = userFile.absolutePath
     }
 
     @After
     fun tearDown() {
-        TrainDatabase.userDbPath = null
         context.deleteDatabase("migration-test-user.db")
     }
 
@@ -116,7 +112,9 @@ class UserDatabaseMigrationTest {
     }
 
     @Test
-    fun `MIGRATION_3_4 copies user rows to user dot db and drops old tables`() = runBlocking {
+    fun `MIGRATION_3_4 drops user tables and leaves static rows intact`() = runBlocking {
+        // Row rescue is UserDataMigrator's job (pre-open, covered there);
+        // the migration itself only removes the old tables.
         val source = openV3Source()
         val db = source.writableDatabase
         val now = System.currentTimeMillis()
@@ -151,31 +149,12 @@ class UserDatabaseMigrationTest {
             assertEquals("MUMBAI CENTRAL", cursor.getString(1))
         }
         source.close()
-
-        // ... and every user row present in user.db via the real DAOs.
-        val userDb = Room.databaseBuilder(context, UserDatabase::class.java, "migration-test-user.db")
-            .build()
-        try {
-            val tracked = userDb.trackingDao().get("12951")
-            assertNotNull(tracked)
-            assertEquals(now, tracked!!.trackedAt)
-            assertEquals(0, tracked.lastDelayMin)
-            assertEquals("MMCT", tracked.lastStation)
-
-            val cached = userDb.cacheDao().get("live:12951:23-SEP-2026")
-            assertNotNull(cached)
-            assertEquals("{\"ok\":true}", cached!!.json)
-        } finally {
-            userDb.close()
-        }
     }
 
     @Test
-    fun `MIGRATION_3_4 also accepts v2-shaped user tables`() = runBlocking {
-        // A file already carrying the Phase C alarm columns (e.g. touched by
-        // a newer build before this migration ran): the explicit 6-column
-        // copy must not column-count-mismatch, and alarm values survive via
-        // INSERT OR REPLACE only where columns exist — verified below.
+    fun `MIGRATION_3_4 drops v2-shaped user tables without touching values`() = runBlocking {
+        // A file already carrying the Phase C alarm columns: drops must not
+        // care about table shape (rescue, if any, is the migrator's job).
         val trainsRef = TrainDatabase.inMemory(context)
         val trainsDdl = dumpSchema(trainsRef.openHelper.writableDatabase)
         trainsRef.close()
@@ -209,29 +188,26 @@ class UserDatabaseMigrationTest {
         )
 
         TrainDatabase.MIGRATION_3_4.migrate(db)
-        source.close()
 
-        val userDb = Room.databaseBuilder(context, UserDatabase::class.java, "migration-test-user.db")
-            .build()
-        try {
-            val tracked = userDb.trackingDao().get("12952")
-            assertNotNull(tracked)
-            assertEquals(now, tracked!!.trackedAt)
-        } finally {
-            userDb.close()
+        db.query("SELECT name FROM sqlite_master WHERE type = 'table'").use { cursor ->
+            val tables = mutableSetOf<String>()
+            while (cursor.moveToNext()) tables.add(cursor.getString(0))
+            assertFalse(tables.contains("tracked_trains"))
+            assertFalse(tables.contains("cached_responses"))
         }
+        source.close()
     }
 
     @Test
-    fun `MIGRATION_3_4 still drops tables when the copy target is unusable`() {
+    fun `MIGRATION_3_4 drops user tables unconditionally`() {
         val source = openV3Source()
         val db = source.writableDatabase
         db.execSQL(
             "INSERT INTO `tracked_trains` (`trainNumber`, `trackedAt`) VALUES ('12951', 1)"
         )
 
-        // Best-effort contract: no path (or a bad one) must never fail upgrade.
-        TrainDatabase.userDbPath = null
+        // Data rescue lives in UserDataMigrator (pre-open); the migration
+        // itself only drops, so it cannot fail the upgrade.
         TrainDatabase.MIGRATION_3_4.migrate(db)
 
         db.query("SELECT name FROM sqlite_master WHERE type = 'table'").use { cursor ->
