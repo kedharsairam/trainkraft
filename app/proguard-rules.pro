@@ -24,6 +24,11 @@
 -keep class com.trainkraft.app.data.TripEntity { *; }
 -keep class com.trainkraft.app.data.CalendarEntity { *; }
 -keep class com.trainkraft.app.data.StopTimeEntity { *; }
+-keep class com.trainkraft.app.data.TrackedTrainEntity { *; }
+-keep class com.trainkraft.app.data.CachedResponseEntity { *; }
+
+# User database (privacy split: tracked trains + response cache in user.db)
+-keep class com.trainkraft.app.data.UserDatabase { *; }
 
 # NTES keys — strip hardcoded constants
 -assumenosideeffects class com.trainkraft.app.data.NtesCrypto {

@@ -50,6 +50,14 @@ android {
             )
         }
     }
+
+    testOptions {
+        // Unit tests (Robolectric included) can read main assets: the
+        // ntes-keys snapshot now, intelligence-pack files next. Without this
+        // AssetManager is empty under test and asset reads throw
+        // FileNotFoundException.
+        unitTests.isIncludeAndroidResources = true
+    }
 }
 
 kotlin {
