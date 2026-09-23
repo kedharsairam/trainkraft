@@ -155,6 +155,18 @@ class TrainDetailViewModel(
     private val _alarmTriggerAt = MutableStateFlow<Long?>(null)
     val alarmTriggerAt: StateFlow<Long?> = _alarmTriggerAt.asStateFlow()
 
+    /**
+     * Phase E per-stop alarms: UPPERCASE station code → wall-clock trigger of
+     * the armed AlarmManager entry. In-memory per process (see
+     * [toggleStopAlarm]): AlarmManager entries don't survive reboot (no boot
+     * receiver in scope) and `getNextAlarmClock` is system-wide, so an
+     * in-memory map is the honest source — it dies exactly when the alarms
+     * do. `watchStationCode` persists only ONE station, so it stays a
+     * poll-path hint, not multi-stop truth.
+     */
+    private val _stopAlarms = MutableStateFlow<Map<String, Long>>(emptyMap())
+    val stopAlarms: StateFlow<Map<String, Long>> = _stopAlarms.asStateFlow()
+
     // --- Prediction engine (Phase B; independent flow, silent-fail → null) ---
     // Priors/fog/vintage come from the local pack tables (empty when the pack
     // is absent — the engine handles that); predictions recompute whenever
@@ -382,6 +394,49 @@ class TrainDetailViewModel(
                 trackingDao?.setWatchStation(trainNumber, null)
                 _approachWatchEnabled.value = false
             }
+        }
+    }
+
+    /**
+     * Phase E per-stop alarm toggle (10-min lead via [APPROACH_LEAD_MIN]):
+     * armed → cancel that station's entry and drop it from [stopAlarms];
+     * unarmed → schedule via AlarmScheduler at the engine-predicted arrival
+     * minus lead (past → now+1s clamp via [stopAlarmEpochs]) and persist the
+     * station via TrackingDao.setWatchStation (receiver one-shot gate +
+     * approach evaluation; last-wins single column, same as [setApproachWatch]).
+     * No-op when live data is absent or the schedule clock is unknown (no
+     * clock → no honest fire time). Multiple stations stay armed at once;
+     * the receiver gates per station via lastApproachFor.
+     *
+     * Tracking-row gap (shared with the arrival/approach alarms): the
+     * receiver drops fires for untracked trains, and setWatchStation is a
+     * no-op without a row — so a stop alarm only notifies once the bell (or
+     * Go-live) created the tracked row. Deliberately no upsert here: that
+     * would flip the bell on without starting the worker.
+     */
+    fun toggleStopAlarm(context: Context, stationCode: String) {
+        val live = _liveStatus.value ?: return
+        val key = stationCode.trim().uppercase()
+        if (key.isEmpty()) return
+        if (_stopAlarms.value.containsKey(key)) {
+            AlarmScheduler.cancelAlarm(context, trainNumber, key)
+            _stopAlarms.value = updateStopAlarmState(_stopAlarms.value, key, null)
+            viewModelScope.launch {
+                if (_stopAlarms.value.isEmpty() && !_approachWatchEnabled.value) {
+                    trackingDao?.setWatchStation(trainNumber, null)
+                }
+            }
+            return
+        }
+        val now = System.currentTimeMillis()
+        val predicted = predictedArrivalFor(live, key, now) ?: return
+        val (schedulePredicted, triggerAt) = stopAlarmEpochs(predicted, APPROACH_LEAD_MIN, now)
+        AlarmScheduler.scheduleStationAlarm(
+            context, trainNumber, key, APPROACH_LEAD_MIN, schedulePredicted,
+        )
+        _stopAlarms.value = updateStopAlarmState(_stopAlarms.value, key, triggerAt)
+        viewModelScope.launch {
+            trackingDao?.setWatchStation(trainNumber, key)
         }
     }
 
@@ -910,6 +965,39 @@ fun alarmTriggerEpoch(
     AlarmScheduler.alarmTriggerAtMillis(predictedArrivalEpochMs, minutesBefore),
     nowMs + 1_000L,
 )
+
+/**
+ * Phase E per-stop schedule epochs: the trigger is [alarmTriggerEpoch]
+ * (predicted − lead, past clamped to now+1s); the predicted instant handed
+ * to `scheduleStationAlarm` is trigger + lead, so the scheduler's internal
+ * `alarmTriggerAtMillis` lands exactly on the clamped trigger instead of
+ * firing a stale prediction immediately.
+ */
+fun stopAlarmEpochs(
+    predictedArrivalEpochMs: Long,
+    minutesBefore: Int,
+    nowMs: Long,
+): Pair<Long, Long> {
+    val triggerAt = alarmTriggerEpoch(predictedArrivalEpochMs, minutesBefore, nowMs)
+    return (triggerAt + minutesBefore.coerceAtLeast(0) * 60_000L) to triggerAt
+}
+
+/**
+ * Pure per-stop alarm-state mapping (UPPERCASE-normalized keys, mirroring
+ * [AlarmScheduler.alarmRequestCode]): non-null [triggerAtMs] arms/re-arms
+ * the station, null disarms it. Blank codes are no-ops. Unit-tested.
+ */
+fun updateStopAlarmState(
+    current: Map<String, Long>,
+    stationCode: String,
+    triggerAtMs: Long?,
+): Map<String, Long> {
+    val key = stationCode.trim().uppercase()
+    if (key.isEmpty()) return current
+    val next = current.toMutableMap()
+    if (triggerAtMs == null) next.remove(key) else next[key] = triggerAtMs
+    return next
+}
 
 /**
  * Engine-predicted arrival epoch: IST calendar date of [nowEpochMs] at

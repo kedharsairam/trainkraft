@@ -131,8 +131,11 @@ fun BetweenScreen(
     val dayOfRuns = remember(allRows) { allRows.map { it.dayOfRun } }
     val counts = remember(dayOfRuns, week) { countsForDates(dayOfRuns, week) }
     val typeOptions = remember(allRows) { distinctTypeFilters(allRows) }
-    val visible = remember(allRows, selectedDate, typeFilter, sort) {
-        applyBetweenView(allRows, selectedDate, typeFilter, sort)
+    val visible = remember(allRows, selectedDate, typeFilter, sort, usualDelays) {
+        applyBetweenView(allRows, selectedDate, typeFilter, sort, usualDelays)
+    }
+    val bestPickNumber = remember(visible, sort, usualDelays) {
+        smartestBestPickNumber(visible, sort, usualDelays)
     }
     val canReload = fromStation != null && toStation != null
 
@@ -308,6 +311,7 @@ fun BetweenScreen(
                             selectedDate = selectedDate,
                             use24h = use24h,
                             usualDelayMin = usualDelays[row.trainNumber],
+                            isBestPick = row.trainNumber == bestPickNumber,
                             onTrainClick = {
                                 haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                 focusManager.clearFocus()
@@ -483,6 +487,11 @@ private fun FilterSortToolbar(
                 selected = sort == BetweenSort.ARRIVAL,
                 onClick = { onSort(BetweenSort.ARRIVAL) },
             )
+            ToolbarChip(
+                label = "Smartest",
+                selected = sort == BetweenSort.SMARTEST,
+                onClick = { onSort(BetweenSort.SMARTEST) },
+            )
         }
     }
 }
@@ -522,6 +531,7 @@ private fun BetweenTrainCard(
     selectedDate: LocalDate,
     use24h: Boolean = true,
     usualDelayMin: Int? = null,
+    isBestPick: Boolean = false,
     onTrainClick: () -> Unit,
 ) {
     val durationMin =
@@ -561,6 +571,9 @@ private fun BetweenTrainCard(
         verticalArrangement = Arrangement.spacedBy(KraftSpacing.Spacing8),
     ) {
         // Line 1: number + name + type chip.
+        if (isBestPick) {
+            BestPickChip()
+        }
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(KraftSpacing.Spacing8),
@@ -735,6 +748,36 @@ private fun BetweenTrainCard(
                 Text("Track")
             }
         }
+    }
+}
+
+/**
+ * "best pick" header chip for the Smartest top card: muted tonal surface,
+ * tabular figures, non-interactive with a spoken description. Shown only
+ * when Smartest is active and the top card has badge data (else nothing,
+ * never invented).
+ */
+@Composable
+private fun BestPickChip() {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .clip(RoundedCornerShape(KraftRadius.Pill))
+            .background(MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.6f))
+            .semantics { contentDescription = "Best pick by predicted arrival" }
+            .padding(
+                horizontal = KraftSpacing.Spacing8,
+                vertical = KraftSpacing.Spacing4,
+            ),
+    ) {
+        Text(
+            text = "best pick",
+            style = tabularFigures(MaterialTheme.typography.labelMedium),
+            color = MaterialTheme.colorScheme.onSecondaryContainer,
+            fontWeight = FontWeight.Medium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 

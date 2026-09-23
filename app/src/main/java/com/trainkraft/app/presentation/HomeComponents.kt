@@ -40,6 +40,8 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -241,12 +243,15 @@ fun AlertsStatusRow(
 /**
  * Tracked-trains overview: one row per bell in `tracked_trains`.
  * Row tap opens the train; bell tap untracks (same path as TrainDetail).
+ * [liveSummaries] enriches each card with its live summary as loads land;
+ * a missing entry renders the plain number+name row (never blocks).
  */
 @Composable
 fun TrackedTrainsSection(
     tracked: List<TrackedRow>,
     onTrainClick: (String) -> Unit,
     onUntrack: (String) -> Unit,
+    liveSummaries: Map<String, TrackedLiveSummary> = emptyMap(),
     modifier: Modifier = Modifier,
 ) {
     val haptics = LocalHapticFeedback.current
@@ -265,6 +270,7 @@ fun TrackedTrainsSection(
             tracked.forEach { row ->
                 TrackedTrainRow(
                     row = row,
+                    live = liveSummaries[row.trainNumber],
                     onOpen = {
                         haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                         onTrainClick(row.trainNumber)
@@ -284,6 +290,7 @@ private fun TrackedTrainRow(
     row: TrackedRow,
     onOpen: () -> Unit,
     onUntrack: () -> Unit,
+    live: TrackedLiveSummary? = null,
     modifier: Modifier = Modifier,
 ) {
     val reduceMotion = rememberReduceMotion()
@@ -303,6 +310,7 @@ private fun TrackedTrainRow(
             }
             .clip(RoundedCornerShape(KraftRadius.Standard))
             .background(MaterialTheme.colorScheme.surfaceContainerLow)
+            .semantics { contentDescription = trackedCardDescription(row, live) }
             .clickable(
                 interactionSource = interaction,
                 indication = null,
@@ -333,6 +341,37 @@ private fun TrackedTrainRow(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
+            }
+            // Live summary: the NTES status line, a DelayChip, and the
+            // journey progress % where the payload carries a total distance.
+            // Absent (still loading / silently failed) → base row only.
+            if (live != null) {
+                Spacer(Modifier.height(KraftSpacing.Spacing8))
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(KraftSpacing.Spacing4),
+                ) {
+                    Text(
+                        text = live.statusText,
+                        style = tabularFigures(MaterialTheme.typography.bodySmall),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(KraftSpacing.Spacing8),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        DelayChip(delayMinutes = live.delayMin)
+                        live.progressPercent?.let { pct ->
+                            Text(
+                                text = "$pct% of journey",
+                                style = tabularFigures(MaterialTheme.typography.labelSmall),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                            )
+                        }
+                    }
+                }
             }
         }
         IconButton(onClick = onUntrack) {
