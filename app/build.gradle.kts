@@ -1,6 +1,7 @@
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.plugin.compose")
+    id("org.jetbrains.kotlin.plugin.serialization")
     id("com.google.devtools.ksp") version "2.2.10-2.0.2"
 }
 
@@ -12,8 +13,8 @@ android {
         applicationId = "com.trainkraft.app"
         minSdk = 26
         targetSdk = 37
-        versionCode = 7
-        versionName = "0.2.0"
+        versionCode = 8
+        versionName = "0.4.0"
     }
 
     buildFeatures {
@@ -60,6 +61,7 @@ kotlin {
 dependencies {
     implementation(platform("androidx.compose:compose-bom:2026.09.00"))
     implementation("androidx.core:core-ktx:1.19.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.9.0")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.11.0")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.11.0")
     implementation("androidx.activity:activity-compose:1.13.0")

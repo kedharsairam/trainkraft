@@ -1,7 +1,6 @@
 package com.trainkraft.app.presentation
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,17 +14,13 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Info
-import com.kraft.ui.tokens.KraftColors
-import com.kraft.ui.tokens.KraftRadius
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -34,98 +29,23 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.trainkraft.app.data.GtfsTime
-import com.trainkraft.app.data.ScheduleStop
+import com.kraft.ui.tokens.KraftColors
+import com.kraft.ui.tokens.KraftRadius
 import com.kraft.ui.tokens.KraftSpacing
-import org.json.JSONObject
+import com.trainkraft.app.data.AvgDelayDto
+import com.trainkraft.app.data.GtfsTime
+import com.trainkraft.app.data.LiveStatusDto
+import com.trainkraft.app.data.ScheduleStop
 
-internal data class LiveParsed(
-    val delay: String?,
-    val platform: String?,
-    val lastLocation: String?,
-    val status: String?,
-    val destination: String?,
-    val source: String?,
-    val date: String?,
-    val fallbackEntries: List<Pair<String, String>>,
-)
-
-internal fun parseLiveJson(raw: String): LiveParsed? {
-    val trimmed = raw.trim()
-    if (!trimmed.startsWith("{")) return null
-    return try {
-        val obj = JSONObject(trimmed)
-        fun findValue(vararg candidates: String): String? {
-            val topKeys = mutableListOf<String>()
-            val iter = obj.keys()
-            while (iter.hasNext()) topKeys.add(iter.next())
-            for (cand in candidates) {
-                topKeys.firstOrNull { it.equals(cand, ignoreCase = true) }?.let { k ->
-                    val v = obj.optString(k, "").trim()
-                    if (v.isNotEmpty() && v != "null") return v
-                }
-            }
-            for (cand in candidates) {
-                topKeys.firstOrNull { it.contains(cand, ignoreCase = true) }?.let { k ->
-                    val v = obj.optString(k, "").trim()
-                    if (v.isNotEmpty() && v != "null") return v
-                }
-            }
-            for (k in topKeys) {
-                val nested = runCatching { obj.getJSONObject(k) }.getOrNull() ?: continue
-                val nKeys = mutableListOf<String>()
-                val nIter = nested.keys()
-                while (nIter.hasNext()) nKeys.add(nIter.next())
-                for (cand in candidates) {
-                    nKeys.firstOrNull { it.equals(cand, ignoreCase = true) }?.let { nk ->
-                        val v = nested.optString(nk, "").trim()
-                        if (v.isNotEmpty() && v != "null") return v
-                    }
-                }
-                for (cand in candidates) {
-                    nKeys.firstOrNull { it.contains(cand, ignoreCase = true) }?.let { nk ->
-                        val v = nested.optString(nk, "").trim()
-                        if (v.isNotEmpty() && v != "null") return v
-                    }
-                }
-            }
-            return null
-        }
-
-        val ldel = obj.optString("LDEL", "").trim()
-        val delay = ldel.ifEmpty { findValue("delay", "late", "delayMinutes", "lateMinutes", "delayInMinutes", "arrivalDelay", "departureDelay") }
-        val platform = findValue("platform", "platformNo", "platNo", "pf")
-        val lastLocation = findValue("lastLocation", "curStation", "currentStation", "currStn", "curStn", "lastStation", "currentLocation", "location", "lastStn")
-        val status = findValue("status", "runningStatus", "curStatus", "trainStatus", "curStnStatus")
-        val destination = findValue("DSTNN", "destination", "destStation", "dest")
-        val source = findValue("SRC", "source", "srcStation", "src")
-        val date = findValue("STD", "date", "runDate", "scheduleDate")
-
-        val fallback = mutableListOf<Pair<String, String>>()
-        val iter2 = obj.keys()
-        while (iter2.hasNext()) {
-            val k = iter2.next()
-            val v = obj.opt(k)?.toString()?.trim().orEmpty()
-            if (v.isNotEmpty() && v != "null" && v != "{}" && v != "[]") {
-                val display = if (v.length > 120) v.take(120) + "\u2026" else v
-                fallback.add(k to display)
-            }
-        }
-        LiveParsed(delay, platform, lastLocation, status, destination, source, date, fallback)
-    } catch (e: Exception) {
-        if (com.trainkraft.app.BuildConfig.DEBUG) {
-            android.util.Log.d("TrainDetailComponents", "parseLiveJson failed", e)
-        }
-        null
-    }
-}
-
+/**
+ * Live-status body rendered straight from the strict [LiveStatusDto] — no raw
+ * JSON guessing. Platform comes from the next unreached stop (the top-level
+ * payload has no platform key; the old scanner could never find one), status
+ * from CPOS, delay minutes from LDEL.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-internal fun LiveParsedCard(json: String) {
-    val parsed = remember(json) { parseLiveJson(json) }
-    val showRaw = remember { mutableStateOf(false) }
-
+internal fun LiveStatusContent(data: LiveStatusDto) {
     Surface(
         shape = RoundedCornerShape(KraftRadius.Standard),
         color = MaterialTheme.colorScheme.surfaceContainerLow,
@@ -137,89 +57,68 @@ internal fun LiveParsedCard(json: String) {
                 .padding(KraftSpacing.Spacing16),
             verticalArrangement = Arrangement.spacedBy(KraftSpacing.Spacing8),
         ) {
-            if (parsed != null) {
-                val statusText = buildString {
-                    parsed.status?.let { append(it) }
-                    parsed.delay?.let {
-                        if (isNotEmpty()) append(" \u00b7 ")
-                        append("${it}min late")
-                    }
+            val statusText = buildString {
+                if (data.statusText.isNotBlank()) append(data.statusText.trim())
+                if (data.delayMin > 0) {
+                    if (isNotEmpty()) append(" · ")
+                    append("${data.delayMin}min late")
                 }
-                if (statusText.isNotBlank()) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(KraftSpacing.Spacing8),
-                    ) {
-                        // Delay severity: green ≤5min, orange ≤15min, red beyond.
-                        val dotColor = when {
-                            parsed.delay == null -> MaterialTheme.colorScheme.onSurfaceVariant
-                            parsed.delay.toIntOrNull()?.let { it <= 5 } == true -> KraftColors.AuroraGreen
-                            parsed.delay.toIntOrNull()?.let { it <= 15 } == true -> KraftColors.AuroraOrange
-                            else -> KraftColors.AuroraRed
-                        }
-                        Box(
-                            modifier = Modifier
-                                .size(8.dp)
-                                .background(dotColor, CircleShape),
-                        )
-                        Text(
-                            text = statusText,
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.SemiBold,
-                        )
+            }
+            if (statusText.isNotBlank()) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(KraftSpacing.Spacing8),
+                ) {
+                    // Delay severity: green ≤5min, orange ≤15min, red beyond.
+                    val dotColor = when {
+                        data.delayMin <= 5 -> KraftColors.AuroraGreen
+                        data.delayMin <= 15 -> KraftColors.AuroraOrange
+                        else -> KraftColors.AuroraRed
                     }
-                }
-                val details = mutableListOf<Pair<String, String>>()
-                parsed.platform?.let { details.add("Platform" to it) }
-                parsed.lastLocation?.let { details.add("At" to it) }
-                parsed.source?.let { details.add("From" to it) }
-                parsed.destination?.let { details.add("To" to it) }
-                parsed.date?.let { details.add("Date" to it) }
-
-                if (details.isNotEmpty()) {
-                    Column(
-                        verticalArrangement = Arrangement.spacedBy(KraftSpacing.Spacing4),
-                    ) {
-                        details.forEach { (label, value) ->
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                            ) {
-                                Text(
-                                    text = label,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.width(64.dp),
-                                )
-                                Text(
-                                    text = value,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    fontWeight = FontWeight.Medium,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                )
-                            }
-                        }
-                    }
-                }
-
-                if (parsed.fallbackEntries.isNotEmpty()) {
-                    HorizontalDivider(modifier = Modifier.padding(vertical = KraftSpacing.Spacing2))
-                    Text(
-                        text = if (showRaw.value) "Hide raw data" else "Show raw data",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.primary,
+                    Box(
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { showRaw.value = !showRaw.value }
-                            .padding(vertical = KraftSpacing.Spacing4),
+                            .size(8.dp)
+                            .background(dotColor, CircleShape),
                     )
-                    if (showRaw.value) {
-                        Column(
-                            verticalArrangement = Arrangement.spacedBy(KraftSpacing.Spacing2),
+                    Text(
+                        text = statusText,
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                }
+            }
+            val details = mutableListOf<Pair<String, String>>()
+            data.nextUnreachedStop()?.platform?.takeIf { it.isNotBlank() }
+                ?.let { details.add("Platform" to it) }
+            data.lastStationName.takeIf { it.isNotBlank() }?.let { details.add("At" to it) }
+            data.nextStationName.takeIf { it.isNotBlank() }?.let { details.add("Next" to it) }
+            data.sourceName.ifBlank { data.sourceCode }
+                .takeIf { it.isNotBlank() }?.let { details.add("From" to it) }
+            data.destName.ifBlank { data.destCode }
+                .takeIf { it.isNotBlank() }?.let { details.add("To" to it) }
+            data.journeyDate.takeIf { it.isNotBlank() }?.let { details.add("Date" to it) }
+
+            if (details.isNotEmpty()) {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(KraftSpacing.Spacing4),
+                ) {
+                    details.forEach { (label, value) ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
                         ) {
-                            parsed.fallbackEntries.forEach { (k, v) ->
-                                LiveRow(label = k, value = v)
-                            }
+                            Text(
+                                text = label,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.width(64.dp),
+                            )
+                            Text(
+                                text = value,
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = FontWeight.Medium,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
                         }
                     }
                 }
@@ -229,33 +128,17 @@ internal fun LiveParsedCard(json: String) {
 }
 
 @Composable
-internal fun LiveRow(label: String, value: String) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-    ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.weight(1f).padding(end = KraftSpacing.Spacing8),
-        )
-        Text(
-            text = value,
-            style = MaterialTheme.typography.bodySmall,
-            fontWeight = FontWeight.Medium,
-            textAlign = TextAlign.End,
-            modifier = Modifier.weight(1f),
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-        )
-    }
-}
-
-@Composable
-internal fun CoachPositionSection(json: String) {
-    val parsed = remember(json) { parseCoachPosition(json) }
-    if (parsed == null || parsed.isEmpty()) return
+internal fun CoachPositionSection(data: LiveStatusDto) {
+    // First stop that actually carries a composition (source once assigned;
+    // blank for trains that haven't started — section hides itself then).
+    val stop = data.stops.firstOrNull {
+        it.arrivalCoachPosition.isNotBlank() || it.departureCoachPosition.isNotBlank()
+    } ?: return
+    val composition = stop.coachComposition()
+        .split("-")
+        .map { it.trim() }
+        .filter { it.isNotEmpty() }
+    if (composition.isEmpty()) return
 
     Column(
         modifier = Modifier
@@ -283,7 +166,7 @@ internal fun CoachPositionSection(json: String) {
             horizontalArrangement = Arrangement.spacedBy(KraftSpacing.Spacing4),
             modifier = Modifier.fillMaxWidth(),
         ) {
-            parsed.forEach { coach ->
+            composition.forEach { coach ->
                 Surface(
                     shape = MaterialTheme.shapes.extraSmall,
                     color = MaterialTheme.colorScheme.surfaceContainerLowest,
@@ -298,8 +181,11 @@ internal fun CoachPositionSection(json: String) {
                 }
             }
         }
-        val classInfo = remember(json) { parseCoachClass(json) }
-        if (classInfo != null && classInfo.isNotEmpty()) {
+        // Arrival composition preferred; departure class list at the source.
+        val classInfo = coachClassSummary(
+            stop.arrivalCoachClass.ifBlank { stop.departureCoachClass },
+        )
+        if (classInfo != null) {
             Text(
                 text = classInfo,
                 style = MaterialTheme.typography.bodySmall,
@@ -311,62 +197,29 @@ internal fun CoachPositionSection(json: String) {
     }
 }
 
-private fun parseCoachPosition(json: String): List<String>? {
-    return try {
-        val obj = JSONObject(json.trim())
-        val stns = obj.optJSONArray("STNS") ?: return null
-        if (stns.length() == 0) return null
-        val firstStation = stns.getJSONObject(0)
-        val coachPos = firstStation.optString("arrivalCoachPosition", "").trim()
-        if (coachPos.isEmpty()) {
-            val depPos = firstStation.optString("departureCoachPosition", "").trim()
-            if (depPos.isEmpty()) return null
-            depPos.split("-").map { it.trim() }
+/** "B1-B1-B2…" → "2×B1 + B2" (same grouping the raw parser did). */
+private fun coachClassSummary(raw: String): String? {
+    val parts = raw.trim().split("-").map { it.trim() }.filter { it.isNotEmpty() }
+    if (parts.isEmpty()) return null
+    val grouped = mutableListOf<Pair<String, Int>>()
+    var current = parts.first()
+    var count = 1
+    for (i in 1 until parts.size) {
+        if (parts[i] == current) {
+            count++
         } else {
-            coachPos.split("-").map { it.trim() }
+            grouped.add(current to count)
+            current = parts[i]
+            count = 1
         }
-    } catch (e: Exception) {
-        if (com.trainkraft.app.BuildConfig.DEBUG) {
-            android.util.Log.d("TrainDetailComponents", "parseCoachPosition failed", e)
-        }
-        null
     }
-}
-
-private fun parseCoachClass(json: String): String? {
-    return try {
-        val obj = JSONObject(json.trim())
-        val stns = obj.optJSONArray("STNS") ?: return null
-        if (stns.length() == 0) return null
-        val firstStation = stns.getJSONObject(0)
-        val coachClass = firstStation.optString("arrivalCoachClass", "").trim()
-        if (coachClass.isEmpty()) return null
-        val parts = coachClass.split("-").map { it.trim() }
-        val grouped = mutableListOf<Pair<String, Int>>()
-        var current = parts.firstOrNull() ?: return null
-        var count = 1
-        for (i in 1 until parts.size) {
-            if (parts[i] == current) {
-                count++
-            } else {
-                grouped.add(current to count)
-                current = parts[i]
-                count = 1
-            }
-        }
-        grouped.add(current to count)
-        grouped.joinToString(" + ") { (cls, cnt) -> if (cnt > 1) "$cnt\u00d7$cls" else cls }
-    } catch (e: Exception) {
-        if (com.trainkraft.app.BuildConfig.DEBUG) {
-            android.util.Log.d("TrainDetailComponents", "parseCoachClass failed", e)
-        }
-        null
-    }
+    grouped.add(current to count)
+    return grouped.joinToString(" + ") { (cls, cnt) -> if (cnt > 1) "$cnt×$cls" else cls }
 }
 
 @Composable
 internal fun AvgDelaySection(
-    json: String?,
+    data: AvgDelayDto?,
     isLoading: Boolean,
     use24h: Boolean,
 ) {
@@ -388,14 +241,26 @@ internal fun AvgDelaySection(
             ) {
                 CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
                 Text(
-                    text = "Loading\u2026",
+                    text = "Loading…",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         }
-        if (json != null && !isLoading) {
-            val entries = remember(json) { parseAvgDelay(json) }
+        if (data != null && !isLoading) {
+            val entries = remember(data) {
+                data.stops.map { stn ->
+                    val arr = stn.arrivalDelay.trim()
+                    val dep = stn.departureDelay.trim()
+                    val delay = when {
+                        arr.isNotEmpty() && dep.isNotEmpty() -> "Arr $arr / Dep $dep"
+                        arr.isNotEmpty() -> "Arr $arr"
+                        dep.isNotEmpty() -> "Dep $dep"
+                        else -> "On time"
+                    }
+                    (stn.name.ifBlank { stn.code }) to delay
+                }
+            }
             if (entries.isNotEmpty()) {
                 Column(verticalArrangement = Arrangement.spacedBy(KraftSpacing.Spacing2)) {
                     entries.take(10).forEach { entry ->
@@ -419,33 +284,6 @@ internal fun AvgDelaySection(
                 }
             }
         }
-    }
-}
-
-private fun parseAvgDelay(json: String): List<Pair<String, String>> {
-    return try {
-        val obj = JSONObject(json.trim())
-        val list = obj.optJSONArray("vAvgDelayList") ?: return emptyList()
-        val entries = mutableListOf<Pair<String, String>>()
-        for (i in 0 until list.length()) {
-            val item = list.getJSONObject(i)
-            val stnName = item.optString("stnName", item.optString("stn", ""))
-            val arrDelay = item.optString("stnArrDelay", "").trim()
-            val depDelay = item.optString("stnDepDelay", "").trim()
-            val delay = when {
-                arrDelay.isNotEmpty() && depDelay.isNotEmpty() -> "Arr $arrDelay / Dep $depDelay"
-                arrDelay.isNotEmpty() -> "Arr $arrDelay"
-                depDelay.isNotEmpty() -> "Dep $depDelay"
-                else -> "On time"
-            }
-            entries.add(stnName to delay)
-        }
-        entries
-    } catch (e: Exception) {
-        if (com.trainkraft.app.BuildConfig.DEBUG) {
-            android.util.Log.d("TrainDetailComponents", "parseAvgDelay failed", e)
-        }
-        emptyList()
     }
 }
 

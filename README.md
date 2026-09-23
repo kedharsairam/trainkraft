@@ -25,7 +25,7 @@ Private train tracking for India. No ads. No analytics. No trackers.
 
 **Delay tracker** — Color-coded delay severity (green ≤5min, orange ≤15min, red >15min). Average delay data from NTES.
 
-**Live notifications** — Opt-in per-train notifications via WorkManager. Polls NTES every 10 minutes, posts status updates.
+**Live notifications** — Opt-in per-train notifications via WorkManager. Polls NTES every 10 minutes and alerts only on meaningful changes: delay worsening, cancellation, or journey completed.
 
 **Share** — Share train info (name, number, route, stops) as clean text.
 
@@ -45,7 +45,7 @@ Private train tracking for India. No ads. No analytics. No trackers.
 | Network | OkHttp + NTES AppServAnd API |
 | Crypto | AES-128-CBC (NTES payload) |
 | Background | WorkManager (live notifications) |
-| Testing | JUnit4 + Robolectric (27 tests) |
+| Testing | JUnit4 + Robolectric (50 tests) |
 
 ---
 

@@ -14,6 +14,10 @@ import kotlinx.coroutines.launch
 
 class PnrViewModel(
     application: Application,
+    private val fetchCaptchaFn: suspend () -> Result<Bitmap> = { PnrApi.fetchCaptcha() },
+    private val refreshCaptchaFn: suspend () -> Result<Bitmap> = { PnrApi.refreshCaptcha() },
+    private val queryPnrFn: suspend (String, String) -> Result<PnrApi.PnrResult> = { p, c -> PnrApi.queryPnr(p, c) },
+    private val resetSessionFn: () -> Unit = { PnrApi.resetSession() },
 ) : AndroidViewModel(application) {
 
     enum class Step { INPUT, CAPTCHA, RESULT }
@@ -39,7 +43,7 @@ class PnrViewModel(
         viewModelScope.launch {
             _isLoading.value = true
             _error.value = null
-            val result = PnrApi.fetchCaptcha()
+            val result = fetchCaptchaFn()
             result
                 .onSuccess { bitmap ->
                     _captchaBitmap.value = bitmap
@@ -56,7 +60,7 @@ class PnrViewModel(
         viewModelScope.launch {
             _isLoading.value = true
             _error.value = null
-            val result = PnrApi.refreshCaptcha()
+            val result = refreshCaptchaFn()
             result
                 .onSuccess { bitmap ->
                     _captchaBitmap.value = bitmap
@@ -78,7 +82,7 @@ class PnrViewModel(
         viewModelScope.launch {
             _isLoading.value = true
             _error.value = null
-            val result = PnrApi.queryPnr(trimmed, captchaAnswer)
+            val result = queryPnrFn(trimmed, captchaAnswer)
             result
                 .onSuccess { pnrData ->
                     _pnrResult.value = pnrData
@@ -119,7 +123,7 @@ class PnrViewModel(
         _error.value = null
         _isLoading.value = false
         currentPnr = ""
-        PnrApi.resetSession()
+        resetSessionFn()
     }
 
     class Factory(

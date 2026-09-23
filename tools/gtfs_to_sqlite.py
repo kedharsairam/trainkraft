@@ -4,9 +4,9 @@
 Usage:
     python gtfs_to_sqlite.py [--input GTFS_ZIP] [--output TRAINS_DB]
 
-Defaults:
-    INPUT:  C:\\Users\\kedhar\\OpenCode\\projects\\app-references\\train-status-deep\\gtfs-20260830.zip
-    OUTPUT: C:\\Users\\kedhar\\OpenCode\\projects\\trainkraft\\app\\src\\main\\assets\\trains.db
+Defaults (relative to this script, works on Linux/macOS/Windows):
+    INPUT:  ../../app-references/train-status/gtfs.zip
+    OUTPUT: ../app/src/main/assets/trains.db
 
 Notes:
     - stdlib only (csv, sqlite3, zipfile, re). No pandas needed.
@@ -24,11 +24,15 @@ import sys
 import zipfile
 from pathlib import Path
 
-DEFAULT_INPUT = Path(
-    r"C:\Users\kedhar\OpenCode\projects\app-references\train-status-deep\gtfs-20260830.zip"
+# Paths are relative to this script (tools/), so the pipeline works on any machine.
+# INPUT can be overridden with --input; the GTFS zip is not checked into git.
+DEFAULT_INPUT = (
+    Path(__file__).resolve().parent.parent.parent
+    / "app-references" / "train-status" / "gtfs.zip"
 )
-DEFAULT_OUTPUT = Path(
-    r"C:\Users\kedhar\OpenCode\projects\trainkraft\app\src\main\assets\trains.db"
+DEFAULT_OUTPUT = (
+    Path(__file__).resolve().parent.parent
+    / "app" / "src" / "main" / "assets" / "trains.db"
 )
 
 TRAIN_NUMBER_RE = re.compile(r"\d{5}")
