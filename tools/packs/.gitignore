@@ -1,0 +1,7 @@
+# Runtime artifacts of the pack pipeline — never commit these.
+staging_avg_delay.db*
+progress.json*
+fog_overlays.db*
+pack.db*
+pack.sha256
+__pycache__/

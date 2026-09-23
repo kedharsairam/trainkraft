@@ -9,7 +9,7 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 /**
- * TrainKraft timetable database, version 4.
+ * TrainKraft timetable database, version 5.
  *
  * Entities mirror the GTFS source (columns verified by caller):
  * stops.txt -> [StationEntity], routes.txt -> [TrainEntity],
@@ -21,6 +21,10 @@ import androidx.sqlite.db.SupportSQLiteDatabase
  * `trains.db` itself is also backup-excluded: it re-seeds from the bundled
  * asset via [Room.databaseBuilder.createFromAsset] on a fresh install /
  * restore (see [getInstance]).
+ * v5 adds the Phase A intelligence-pack tables ([DelayPriorEntity] /
+ * [FogOverlayEntity] / [PackMetaEntity], served via [packDao] and filled by
+ * [PackImporter] from a pipeline-built `pack.db`): CRIS average-delay priors
+ * plus fog-season timetable overlays for the Phase B prediction engine.
  *
  * Pre-population: [Room.databaseBuilder.createFromAsset]("trains.db") is
  * wired in [getInstance] so dropping a `trains.db` file into
@@ -29,8 +33,10 @@ import androidx.sqlite.db.SupportSQLiteDatabase
  * Migrations: 2 -> 3 is a real migration ([MIGRATION_2_3]) that only
  * CREATEs the new state tables — existing timetable data survives. 3 -> 4
  * ([MIGRATION_3_4]) copies those state tables into `user.db` one-shot, then
- * drops them here. The destructive fallback remains solely for the legacy
- * 1 -> 2 pre-release bump.
+ * drops them here. 4 -> 5 ([MIGRATION_4_5]) CREATEs the three pack tables
+ * (empty — rows arrive later via [PackImporter]); GTFS tables are untouched.
+ * The destructive fallback remains solely for the legacy 1 -> 2 pre-release
+ * bump.
  */
 @Database(
     entities = [
@@ -39,13 +45,18 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         TripEntity::class,
         CalendarEntity::class,
         StopTimeEntity::class,
+        DelayPriorEntity::class,
+        FogOverlayEntity::class,
+        PackMetaEntity::class,
     ],
-    version = 4,
+    version = 5,
     exportSchema = false
 )
 abstract class TrainDatabase : RoomDatabase() {
 
     abstract fun trainDao(): TrainDao
+
+    abstract fun packDao(): PackDao
 
     companion object {
         const val ASSET_NAME = "trains.db"
@@ -144,6 +155,43 @@ abstract class TrainDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * Intelligence-pack schema, v4 -> v5.
+         *
+         * Mechanism: CREATEs the three pack tables with the schema contract
+         * DDL verbatim (byte agreement with the pipeline's `pack.db`, see
+         * [DelayPriorEntity]'s class KDoc). Tables start empty — rows arrive
+         * later via [PackImporter], which never runs inside a migration. The
+         * five static GTFS tables are never touched.
+         */
+        internal val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `delay_priors` (" +
+                        "`trainNumber` TEXT NOT NULL, " +
+                        "`stationCode` TEXT NOT NULL, " +
+                        "`arrAvgMin` INTEGER NOT NULL DEFAULT 0, " +
+                        "`depAvgMin` INTEGER NOT NULL DEFAULT 0, " +
+                        "`updatedAt` INTEGER NOT NULL, " +
+                        "PRIMARY KEY(`trainNumber`, `stationCode`))"
+                )
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `fog_overlays` (" +
+                        "`trainNumber` TEXT NOT NULL PRIMARY KEY, " +
+                        "`action` TEXT NOT NULL, " +
+                        "`fromDate` TEXT NOT NULL, " +
+                        "`toDate` TEXT NOT NULL, " +
+                        "`season` TEXT NOT NULL, " +
+                        "`note` TEXT NOT NULL DEFAULT '')"
+                )
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `pack_meta` (" +
+                        "`key` TEXT NOT NULL PRIMARY KEY, " +
+                        "`value` TEXT NOT NULL)"
+                )
+            }
+        }
+
         @Volatile
         private var INSTANCE: TrainDatabase? = null
 
@@ -161,7 +209,7 @@ abstract class TrainDatabase : RoomDatabase() {
                     DB_NAME
                 )
                     .createFromAsset(ASSET_NAME)
-                    .addMigrations(MIGRATION_2_3, MIGRATION_3_4)
+                    .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
                     // CRITICAL: never use the *unconditional* fallback together
                     // with createFromAsset — Room then deletes + re-copies the
                     // asset on EVERY open (even same-version), silently wiping
