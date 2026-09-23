@@ -12,11 +12,14 @@ import androidx.room.Query
 /**
  * Phase A intelligence-pack tables (TrainDatabase v5).
  *
- * Written by: the offline pipeline (`tools/packs/`, peer-owned) which scrapes
- * CRIS average-delay pages + fog-season circulars and ships them as a signed
- * `pack.db`; rows land in these tables via [PackImporter].
- * Read by: the Phase B prediction engine (ETA correction + fog timetable
- * overlays). GTFS static tables are never touched by packs.
+ * Written by: the offline pipeline (`tools/packs/`) which compiles CRIS
+ * average-delay pages + fog-season circulars into a signed `pack.db`; rows
+ * land in these tables via [PackImporter].
+ * Read by: the fog-notice UI (`fog_overlays` — published program facts) and
+ * pack-vintage caption (`pack_meta`). The `delay_priors` table is PARKED per
+ * the reality doctrine (no computed futures — see [PackDao.priorsForTrain]):
+ * schema + importer coverage stay, nothing reads it. GTFS static tables are
+ * never touched by packs.
  *
  * DDL contract (byte agreement with the pipeline — Room must generate
  * identical tables via the @ColumnInfo names/types/defaults below):
@@ -37,8 +40,9 @@ import androidx.room.Query
  * Per-train-per-station CRIS average delay, in whole minutes.
  *
  * 0 means on time: CRIS reports "On Time" / "HH:MM" / blank, and blank maps
- * to 0 (documented pipeline rule). Phase B reads these via
- * [PackDao.priorsForTrain] to bias arrival/departure predictions.
+ * to 0 (documented pipeline rule). PARKED per the reality doctrine — nothing
+ * reads these rows (no computed futures); retained for schema stability and
+ * importer roundtrip coverage.
  *
  * @param trainNumber 5-digit train number, e.g. "12951".
  * @param stationCode Station code, e.g. "BRC".
@@ -70,9 +74,9 @@ data class DelayPriorEntity(
 /**
  * Fog-season timetable overlay for one train.
  *
- * Written by the pipeline from railway fog circulars; read by Phase B to
- * explain / adjust winter predictions. One row per train (latest circular
- * wins at import time via INSERT OR REPLACE).
+ * Written by the pipeline from railway fog circulars; read by the detail
+ * screen as a published-fact notice (never a forecast). One row per train
+ * (latest circular wins at import time via INSERT OR REPLACE).
  *
  * @param trainNumber 5-digit train number, e.g. "12951".
  * @param action One of CANCELLED, REDUCED_FREQ, REVISED_TIMING.
@@ -139,8 +143,10 @@ interface PackDao {
     suspend fun putMeta(row: PackMetaEntity)
 
     /**
-     * All delay priors for one train. Phase B use: per-station delay bias
-     * when predicting arrival/departure at each upcoming stop.
+     * All delay priors for one train. PARKED per the reality doctrine: no
+     * screen consumes priors anymore (no computed futures). Kept with the
+     * table + importer roundtrip coverage because the schema is shared with
+     * the pipeline contract — dropping it buys nothing and churns migrations.
      */
     @Query("SELECT * FROM `delay_priors` WHERE `trainNumber` = :train ORDER BY `stationCode`")
     suspend fun priorsForTrain(train: String): List<DelayPriorEntity>
@@ -173,9 +179,9 @@ interface PackDao {
     suspend fun metaAll(): Map<@MapColumn("key") String, @MapColumn("value") String>
 
     /**
-     * Single arrival/departure prior for one train at one station (Phase B
-     * between-stations "usually +N" badge: one DAO call per card, local DB).
-     * Null when the pack has no row — the UI shows no badge, never invents.
+     * Single arrival/departure prior for one train at one station. PARKED
+     * per the reality doctrine (see [priorsForTrain]) — retained for schema
+     * symmetry and importer coverage.
      */
     @Query(
         "SELECT * FROM `delay_priors` " +

@@ -20,7 +20,6 @@ import com.trainkraft.app.data.LoadResult
 import com.trainkraft.app.data.NotificationPolicy
 import com.trainkraft.app.data.PollSnapshot
 import com.trainkraft.app.presentation.currentStopIndex
-import com.trainkraft.app.presentation.predictJourney
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -72,8 +71,8 @@ import java.util.TimeZone
  * The cycle interval is the MINIMUM of the per-train recommended intervals,
  * so one near-arrival train boosts the whole loop to 30s.
  *
- * POLL LADDER: 60s default; 30s when the engine-backed ETA to the next stop
- * is ≤15 min away (see [pollIntervalFor]). Priors/engine failures degrade
+ * POLL LADDER: 60s default; 30s when the next stop's published/expected
+ * arrival is ≤15 min away (see [pollIntervalFor]). Missing clocks degrade
  * to 60s — the loop never crashes on prediction input.
  *
  * DOZE HONESTY: a foreground service is a Doze-exempt path only while it is
@@ -231,36 +230,16 @@ class TrackingService : Service() {
         val snapshot = dto.toPollSnapshot()
         val category = NotificationPolicy.delayCategory(snapshot.delayMin).name
 
-        // Engine-backed boost inputs: pack priors + fog, best-effort.
+        // Next-stop proximity from published/server clocks only (schedule
+        // first, NTES expected times second — both displayed, neither
+        // computed). No engine, no priors: poll timing is internal machinery,
+        // and the timetable is all it needs to know "roughly near a stop".
         val stops = dto.stops
         val anchorIndex = currentStopIndex(
             stops.map { it.arrived },
             stops.map { it.departed },
         )
-        val anchorAgeMin = tracked.lastPollAt?.let { ((now - it) / 60_000L).coerceAtLeast(0) } ?: 0L
-        val priors = runCatching {
-            container.database.packDao().priorsForTrain(trainNumber).associateBy { it.stationCode }
-        }.getOrDefault(emptyMap())
-        val fog = runCatching {
-            container.database.packDao()
-                .fogForTrain(trainNumber, istFormat("yyyy-MM-dd").format(Date(now)))
-        }.getOrNull()
-        val prediction = runCatching {
-            predictJourney(
-                stops = stops,
-                anchorIndex = anchorIndex,
-                anchorDelayMin = snapshot.delayMin,
-                anchorAgeMin = anchorAgeMin,
-                priors = priors,
-                fog = fog,
-                todayYMD = istFormat("yyyy-MM-dd").format(Date(now)),
-                elapsedMin = null,
-                schedSegMin = null,
-            )
-        }.getOrNull()
-        val predictedByCode = prediction?.predictions?.associate { it.stationCode to it.predictedDelayMin }
-            .orEmpty()
-        val minutesUntil = minutesUntilNextStop(stops, anchorIndex, predictedByCode, now)
+        val minutesUntil = minutesUntilNextStop(stops, anchorIndex, now)
         val recommended = pollIntervalFor(minutesUntil)
 
         // Shared-dedup funnel (see class KDoc): decide against stored state…
@@ -443,7 +422,7 @@ const val POLL_INTERVAL_MS = 60_000L
 /** Boosted cadence when the next stop is imminent. */
 const val BOOST_POLL_INTERVAL_MS = 30_000L
 
-/** Boost when the engine-backed ETA to the next stop is within this window. */
+/** Boost when the next stop's published/expected arrival is within this window. */
 const val BOOST_THRESHOLD_MIN = 15
 
 /** Inter-poll gap inside one multi-train cycle (thundering-herd guard). */
@@ -452,7 +431,8 @@ const val STAGGER_OFFSET_MS = 5_000L
 /**
  * Poll ladder: 30s when the next stop is [BOOST_THRESHOLD_MIN] min or less
  * away (small negative tolerance covers "just arrived, stale anchor"), 60s
- * otherwise — including null (no engine/priors/next stop: pure, cheap path).
+ * otherwise — including null (no published/expected clock, no next stop:
+ * pure, cheap path).
  * Never throws; null-safe by contract.
  */
 fun pollIntervalFor(minutesUntilNextStop: Int?): Long =
@@ -465,13 +445,14 @@ fun pollIntervalFor(minutesUntilNextStop: Int?): Long =
     }
 
 /**
- * Engine-backed minutes until the next stop's predicted arrival.
+ * Minutes until the next stop's published/expected arrival (schedule first,
+ * NTES expected times second — every value here is displayed on screen, none
+ * computed).
  *
  * next stop = stop after [anchorIndex] (first stop when null = pre-departure;
  * null when the anchor is the last stop). Base = first parseable of
  * scheduled arrival → ETA → scheduled departure → ETD (NTES `"HH:MM …"`
- * strings via [com.trainkraft.app.data.NtesFormats.timeToMinutes]);
- * arrival = base + [predictedDelayByCode] for that stop (0 when absent).
+ * strings via [com.trainkraft.app.data.NtesFormats.timeToMinutes]).
  * Compared against IST wall-clock derived from [nowEpochMs] (pure/testable).
  * Overnight rollover: deltas below −12h wrap +24h. Null on any unparseable
  * input — the caller degrades to 60s.
@@ -479,16 +460,14 @@ fun pollIntervalFor(minutesUntilNextStop: Int?): Long =
 fun minutesUntilNextStop(
     stops: List<com.trainkraft.app.data.LiveStopDto>,
     anchorIndex: Int?,
-    predictedDelayByCode: Map<String, Int>,
     nowEpochMs: Long,
 ): Int? {
     val nextIndex = (anchorIndex ?: -1) + 1
     if (nextIndex < 0 || nextIndex >= stops.size) return null
     val next = stops[nextIndex]
-    val base = listOf(next.scheduledArrival, next.estArrival, next.scheduledDeparture, next.estDeparture)
+    val arrival = listOf(next.scheduledArrival, next.estArrival, next.scheduledDeparture, next.estDeparture)
         .firstNotNullOfOrNull { com.trainkraft.app.data.NtesFormats.timeToMinutes(it) }
         ?: return null
-    val arrival = base + (predictedDelayByCode[next.code] ?: 0)
     val cal = Calendar.getInstance(TimeZone.getTimeZone("Asia/Kolkata")).apply {
         timeInMillis = nowEpochMs
     }

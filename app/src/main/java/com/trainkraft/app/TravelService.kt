@@ -125,7 +125,6 @@ class TravelService : Service() {
     private val fixWindow = ArrayDeque<FixSample>()
     private var fixCount = 0
     private var sessionStartMs = 0L
-    private var lastEtaMin: Double? = null
     private var lastNextStop: String? = null
     private var routeCodes: List<String> = emptyList()
     private var stationCoords: Map<String, Pair<Double, Double>> = emptyMap()
@@ -178,7 +177,6 @@ class TravelService : Service() {
         activeTrain = train
         fixWindow.clear()
         fixCount = 0
-        lastEtaMin = null
         lastNextStop = null
         routeCodes = emptyList()
         stationCoords = emptyMap()
@@ -260,20 +258,14 @@ class TravelService : Service() {
         }
 
         // Tunnel hold: bad-accuracy fixes never enter the smoother (see
-        // TravelMath); a null smooth keeps the last ETA instead of inventing.
+        // TravelMath); a null smooth reads "waiting" instead of inventing.
         val smooth = smoothedSpeedKmh(fixWindow.toList())
         val anchor = anchorCode(lat, lon)
         val next = anchor?.let { nextStopAfter(it, routeCodes) }
         if (next != null) lastNextStop = next
         val remainingKm = remainingKmTo(lat, lon, lastNextStop)
-        val eta = if (remainingKm != null && smooth != null) {
-            liveEtaMin(remainingKm, smooth) ?: lastEtaMin
-        } else {
-            lastEtaMin
-        }
-        if (eta != null) lastEtaMin = eta
 
-        updateForeground(travelSummaryFor(train, smooth, eta, lastNextStop))
+        updateForeground(travelSummaryFor(train, smooth, remainingKm, lastNextStop))
 
         // Advisory arrival at the destination ends the session (never server-bound).
         val dest = routeCodes.lastOrNull()
@@ -438,25 +430,27 @@ data class TravelSummary(
 
 /**
  * Notification copy for the session state. Pure (String-only) so it is
- * directly unit-testable ([TravelServiceLogicTest]). A halted speed
- * (< 8 km/h) suppresses any held ETA and reads "waiting · next <stop>"
- * (never a bogus count); a tunnel hold (no current speed, held ETA) keeps
- * counting down; with no route at all it reads "waiting for GPS".
+ * directly unit-testable ([TravelServiceLogicTest]). Speed, remaining
+ * distance and next stop are GPS measurements; no arrival-time estimates
+ * anywhere. A halted speed (< 8 km/h) reads "waiting · next <stop>"
+ * (never a bogus count); with no route at all it reads "waiting for GPS".
  */
 fun travelSummaryFor(
     trainNumber: String,
     speedKmh: Double?,
-    etaMin: Double?,
+    remainingKm: Double?,
     nextStop: String?,
 ): TravelSummary {
     val moving = speedKmh != null && speedKmh >= MIN_MOVING_SPEED_KMH
     val halted = speedKmh != null && !moving
     val speedText = if (moving) "${speedKmh!!.toInt()} km/h" else "waiting"
+    val distText = remainingKm?.takeIf { it.isFinite() && it >= 0.0 }?.let {
+        if (it < 1.0) "~${(it * 1000).toInt()} m" else "~${it.toInt()} km"
+    }
     val text = when {
-        // Tunnel hold: no current speed but a held ETA still counts down.
-        etaMin != null && nextStop != null && !halted ->
-            "$speedText · $nextStop in ${etaMin.toInt()} min · tap for details"
-        // Halt: stale ETA suppressed — "waiting" only, never a bogus count.
+        nextStop != null && distText != null && !halted ->
+            "$speedText · $distText to $nextStop · tap for details"
+        // Halt: "waiting" only, never a bogus count.
         nextStop != null -> "$speedText · next $nextStop · tap for details"
         halted -> "$speedText · tap for details"
         else -> "waiting for GPS · tap for details"
