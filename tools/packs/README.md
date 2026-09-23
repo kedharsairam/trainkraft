@@ -44,12 +44,16 @@ Fetches average-delay history for 2 trains, writes `staging_avg_delay.db`
 python3 sweep_avg_delay.py
 ```
 
-* POLITENESS CONTRACT: 1.2 s base delay + up to 0.5 s jitter between calls;
-  HTTP 429/5xx → sleep 60 s, retry ≤ 3, then record in
-  `progress.json.failed` and move on. Run off-peak IST (~00:00–05:00);
+* POLITENESS CONTRACT: 2.0 s base delay + up to 0.5 s jitter between calls;
+  HTTP 429/5xx AND transport failures (reset/timeout/DNS/SSL) → sleep 60 s,
+  retry ≤ 3, then record in `progress.json.failed` and move on. 8 consecutive
+  transport-side failures anywhere → 5-minute cooldown. Fatal content
+  (AlertMsg incl. "No Avg. Delay Record", bad shape, decrypt failure) is
+  never retried. Raised from 1.2 s on 2026-09-23 after the server answered
+  a burst with connection resets. Run off-peak IST (~00:00–05:00);
   the script enforces nothing about wall-clock time — the operator picks
   the window.
-* Wall time ≈ 4.5 h for ~10.5k trains (~1.5 s/call incl. latency); the
+* Wall time ≈ 8 h for ~10.5k trains (~2.7 s/call incl. latency); the
   script prints a live ETA from the remaining count.
 * Resumable: reruns skip `progress.json.done` and retry `failed`
   (`--no-resume` to start over). Interrupt-safe — progress is saved per
