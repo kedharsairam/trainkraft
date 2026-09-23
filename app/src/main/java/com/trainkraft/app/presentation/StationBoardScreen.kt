@@ -28,6 +28,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Train
+import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material.icons.filled.WifiOff
 import androidx.compose.material.icons.outlined.Train
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -66,16 +67,15 @@ import com.kraft.ui.tokens.KraftRadius
 import com.kraft.ui.tokens.KraftSpacing
 import com.trainkraft.app.data.GtfsTime
 import com.trainkraft.app.data.SettingsStore
-import com.trainkraft.app.data.StationDeparture
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 /**
- * Offline station departure board.
- *
- * No NtesApi station_live endpoint exists — "Offline schedule" note kept,
- * no dead Live Board CTA. Destination from last-stop subquery.
+ * Station departure board — live NTES rows (platform, delay, cancellations)
+ * merged over the offline GTFS weekday timetable. The header badge states
+ * which source you're looking at (live / cached / offline).
+ * Destination from last-stop subquery.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -94,6 +94,8 @@ fun StationBoardScreen(
     val viewModel: StationBoardViewModel = viewModel(factory = factory)
     val station by viewModel.station.collectAsState()
     val departures by viewModel.departures.collectAsState()
+    val source by viewModel.source.collectAsState()
+    val sourceAgeMs by viewModel.sourceAgeMs.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val dbError by viewModel.dbError.collectAsState()
 
@@ -152,7 +154,12 @@ fun StationBoardScreen(
             departures.isEmpty() -> {
                 EmptyState(
                     title = "No departures",
-                    message = "No trains from ${station?.code ?: stationCode} for $formattedDate. Timetables vary by weekday.",
+                    message = when (source) {
+                        DataSource.LIVE, DataSource.CACHED ->
+                            "No upcoming departures from ${station?.code ?: stationCode} right now."
+                        else ->
+                            "No trains from ${station?.code ?: stationCode} for $formattedDate. Timetables vary by weekday."
+                    },
                     icon = Icons.Outlined.Train,
                     actionLabel = "Go back",
                     onAction = {
@@ -180,9 +187,11 @@ fun StationBoardScreen(
                             count = departures.size,
                             formattedDate = formattedDate,
                             weekday = shortWeekday,
+                            source = source,
+                            sourceAgeMs = sourceAgeMs,
                         )
                     }
-                    items(departures, key = { it.tripId }) { departure ->
+                    items(departures, key = { it.key }) { departure ->
                         DepartureCard(
                             departure = departure,
                             use24h = use24h,
@@ -205,6 +214,8 @@ private fun StationBoardHeader(
     count: Int,
     formattedDate: String,
     weekday: String,
+    source: DataSource,
+    sourceAgeMs: Long?,
 ) {
     Column(
         modifier = Modifier
@@ -251,18 +262,27 @@ private fun StationBoardHeader(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
+        // Source honesty badge: where these rows actually came from.
+        val (sourceIcon, sourceLabel) = when (source) {
+            DataSource.LIVE -> Icons.Filled.Wifi to "Live · NTES now"
+            DataSource.CACHED -> Icons.Filled.WifiOff to (
+                sourceAgeMs?.let { "Cached NTES · updated ${formatAge(it)}" }
+                    ?: "Cached NTES response"
+            )
+            DataSource.OFFLINE -> Icons.Filled.WifiOff to "Offline schedule · GTFS snapshot Aug 2026"
+        }
         Row(
             horizontalArrangement = Arrangement.spacedBy(KraftSpacing.Spacing6),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(
-                Icons.Filled.WifiOff,
+                sourceIcon,
                 contentDescription = null,
                 modifier = Modifier.size(KraftIconSize.Tiny),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Text(
-                text = "Offline schedule · GTFS snapshot Aug 2026",
+                text = sourceLabel,
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -272,7 +292,7 @@ private fun StationBoardHeader(
 
 @Composable
 private fun DepartureCard(
-    departure: StationDeparture,
+    departure: BoardRow,
     use24h: Boolean = true,
     onClick: () -> Unit,
 ) {
@@ -378,14 +398,45 @@ private fun DepartureCard(
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
                 fontFamily = FontFamily.Monospace,
-                color = KraftColors.AuroraGreen,
+                color = if (departure.cancelled) {
+                    MaterialTheme.colorScheme.error
+                } else {
+                    KraftColors.AuroraGreen
+                },
                 maxLines = 1,
             )
             Text(
-                text = "Dept.",
+                text = if (departure.cancelled) "Cancelled" else "Dept.",
                 style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = if (departure.cancelled) {
+                    MaterialTheme.colorScheme.error
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
             )
+            // Live-only extras: platform and departure delay (NTES).
+            departure.platform?.let { pf ->
+                Text(
+                    text = "PF $pf",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontFamily = FontFamily.Monospace,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            departure.delayMin?.let { d ->
+                if (d > 0) {
+                    Text(
+                        text = "$d min late",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = when {
+                            d <= 5 -> KraftColors.AuroraGreen
+                            d <= 15 -> KraftColors.AuroraOrange
+                            else -> KraftColors.AuroraRed
+                        },
+                    )
+                }
+            }
         }
     }
 }

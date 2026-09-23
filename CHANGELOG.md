@@ -2,6 +2,30 @@
 
 All notable changes to TrainKraft are documented here.
 
+## [0.4.0] - 2026-09-23
+
+### Added
+- Typed NTES data layer: strict kotlinx-serialization DTOs for all seven endpoints, built from captured production fixtures (`app/src/test/resources/fixtures/`) and schema-validated in tests
+- `NtesRepository` pipeline: network-first with strict parse → response-cache fallback → explicit failure; screens label the source honestly (Live / Cached / Offline badges on station board and between-stations)
+- Manual DI container (`AppContainer`, fully lazy — nothing touches the DB on app start)
+- Official-schedule fallback (NTES GetTrainSchedule) for trains missing from the GTFS snapshot, labeled in the UI
+- Station board fetches live NTES departures (platform, delay, cancellations) merged over the offline full-day GTFS timetable
+- Between-stations queries live NTES first (regional board/alight resolution), GTFS timetable as labeled fallback
+- `NotificationPolicy`: notify only on delay-category worsening (≤5 / 6–15 / >15 min), a ≥15-min shift inside SEVERE, cancellation, or completion — the first poll sets a silent baseline; station movement never notifies
+- Persisted tracking rows (`tracked_trains`, DB v3): bell state survives process death; journey completion deletes the row and stops the worker
+- CI runs the unit-test suite on every push/PR (plus lint)
+
+### Fixed
+- Notifications fired on every 10-minute poll (including pure station movement) — now only meaningful changes
+- Live-status platform lookup scanned for a top-level key that never exists (could never show a platform) — platform now comes from the next unreached stop
+- Average-delay failures vanished silently — now show a one-line "unavailable" note
+- GTFS import script was Windows-only (hard-coded paths) — now path-relative defaults
+- `backup_rules.xml` referenced removed files; version bumped to 0.4.0 (versionCode 8)
+
+### Changed
+- ViewModels moved off raw `JSONObject` string parsing to typed `LoadResult<T>` state (live status, average delay, boards)
+- Test suite grew 27 → 50 (fixture schema tests, notification-policy decision tests, PNR fakes — tests never hit production endpoints)
+
 ## [0.3.0] - 2026-09-19
 
 ### Changed
