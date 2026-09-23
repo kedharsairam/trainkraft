@@ -24,4 +24,14 @@ data class TrackedTrainEntity(
     val lastCategory: String? = null,
     /** Epoch ms of the last successful poll. */
     val lastPollAt: Long? = null,
+    /**
+     * Station the user wants an approach alarm for (Phase C station alarms;
+     * null = destination-only behavior). Set via TrackingDao.setWatchStation.
+     */
+    val watchStationCode: String? = null,
+    /**
+     * Watch-station code already notified for (one-shot approach gate;
+     * null = none). Set via TrackingDao.markApproachNotified.
+     */
+    val lastApproachFor: String? = null,
 )

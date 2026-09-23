@@ -95,4 +95,50 @@ object PermissionFlow {
         if (locationMissing) add(TrackingPermission.LOCATION)
         if (exactAlarmMissing) add(TrackingPermission.EXACT_ALARM)
     }
+
+    // ------------------------------------------------- Phase C live tracking
+    // Additive only: nothing above is touched. Location is EXCLUDED here —
+    // Phase C live tracking has no GPS (minute NTES polling + AlarmManager
+    // only); location belongs to Phase D travel mode ([TrackingPermission]).
+
+    /**
+     * Live-tracking requirements in request order: notifications (the alert
+     * channel), exact alarms (punctual station alarms), battery exemption
+     * (surviving OEM task killers). No location — see above.
+     */
+    enum class LiveTrackingRequirement {
+        NOTIFICATIONS,
+        EXACT_ALARM,
+        BATTERY_EXEMPTION,
+    }
+
+    /**
+     * Plain-language rationale per live-tracking requirement (literal UI
+     * copy — the onboarding sheet renders these verbatim).
+     */
+    val liveTrackingRationales: Map<LiveTrackingRequirement, String> = mapOf(
+        LiveTrackingRequirement.NOTIFICATIONS to
+            "Notifications let TrainKraft alert you about delays and arrivals.",
+        LiveTrackingRequirement.EXACT_ALARM to
+            "Exact alarms fire station alerts on time, even in Doze.",
+        LiveTrackingRequirement.BATTERY_EXEMPTION to
+            "Ignoring battery optimizations keeps minute-level tracking alive on your device.",
+    )
+
+    /**
+     * Ordered subset of [LiveTrackingRequirement] not yet granted — the
+     * checklist the live-tracking onboarding sheet consumes top to bottom.
+     * Pure (Context-free) for plain-JUnit testing; callers supply flags via
+     * [hasNotifications], [canScheduleExactAlarms] and
+     * BatteryExemption.isExempt.
+     */
+    fun missingLiveTrackingRequirements(
+        notificationsMissing: Boolean,
+        exactAlarmMissing: Boolean,
+        batteryExemptionMissing: Boolean,
+    ): List<LiveTrackingRequirement> = buildList {
+        if (notificationsMissing) add(LiveTrackingRequirement.NOTIFICATIONS)
+        if (exactAlarmMissing) add(LiveTrackingRequirement.EXACT_ALARM)
+        if (batteryExemptionMissing) add(LiveTrackingRequirement.BATTERY_EXEMPTION)
+    }
 }

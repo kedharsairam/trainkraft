@@ -104,6 +104,13 @@ abstract class TrainDatabase : RoomDatabase() {
          * then `DROP TABLE` the old copies here. Static GTFS tables are never
          * touched.
          *
+         * Column-robustness (Phase C): the copy lists the ORIGINAL six
+         * `tracked_trains` columns explicitly, so both real v3 files (6 cols,
+         * pre-alarm) and v2-shaped files (8 cols, with `watchStationCode` /
+         * `lastApproachFor`) migrate without column-count mismatch. The
+         * CREATE here carries the current 8-column shape so the later
+         * [UserDatabase] v2 open validates.
+         *
          * Failure policy: the copy block is best-effort — any exception is
          * logged and swallowed so the upgrade can never brick the timetable.
          * The drops always run. If the copy failed (e.g. no path set, disk
@@ -125,7 +132,9 @@ abstract class TrainDatabase : RoomDatabase() {
                                     "`lastDelayMin` INTEGER, " +
                                     "`lastStation` TEXT, " +
                                     "`lastCategory` TEXT, " +
-                                    "`lastPollAt` INTEGER)"
+                                    "`lastPollAt` INTEGER, " +
+                                    "`watchStationCode` TEXT, " +
+                                    "`lastApproachFor` TEXT)"
                             )
                             db.execSQL(
                                 "CREATE TABLE IF NOT EXISTS `userdb`.`cached_responses` (" +
@@ -133,9 +142,16 @@ abstract class TrainDatabase : RoomDatabase() {
                                     "`json` TEXT NOT NULL, " +
                                     "`fetchedAt` INTEGER NOT NULL)"
                             )
+                            // Explicit 6-column list: real v3 files predate the
+                            // Phase C alarm columns; v2-shaped files carry all
+                            // eight (extra columns default null on copy).
                             db.execSQL(
                                 "INSERT OR REPLACE INTO `userdb`.`tracked_trains` " +
-                                    "SELECT * FROM `tracked_trains`"
+                                    "(`trainNumber`, `trackedAt`, `lastDelayMin`, " +
+                                    "`lastStation`, `lastCategory`, `lastPollAt`) " +
+                                    "SELECT `trainNumber`, `trackedAt`, `lastDelayMin`, " +
+                                    "`lastStation`, `lastCategory`, `lastPollAt` " +
+                                    "FROM `tracked_trains`"
                             )
                             db.execSQL(
                                 "INSERT OR REPLACE INTO `userdb`.`cached_responses` " +

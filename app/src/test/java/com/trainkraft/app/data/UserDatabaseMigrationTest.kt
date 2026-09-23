@@ -65,20 +65,37 @@ class UserDatabaseMigrationTest {
         return out
     }
 
+    /**
+     * True v3 user-table shape, hardcoded (NOT dumped from live Room): real
+     * on-device v3 files predate the Phase C alarm columns. The migration
+     * must accept this 6-column shape (explicit column list on copy) as well
+     * as v2-shaped files — both are pinned by tests.
+     */
+    private val v3UserDdl = listOf(
+        "CREATE TABLE `tracked_trains` (" +
+            "`trainNumber` TEXT NOT NULL PRIMARY KEY, " +
+            "`trackedAt` INTEGER NOT NULL, " +
+            "`lastDelayMin` INTEGER, " +
+            "`lastStation` TEXT, " +
+            "`lastCategory` TEXT, " +
+            "`lastPollAt` INTEGER)",
+        "CREATE TABLE `cached_responses` (" +
+            "`cacheKey` TEXT NOT NULL PRIMARY KEY, " +
+            "`json` TEXT NOT NULL, " +
+            "`fetchedAt` INTEGER NOT NULL)",
+    )
+
     /** Builds an in-memory v3-shaped source DB: static GTFS + user tables. */
     private fun openV3Source(): SupportSQLiteOpenHelper {
         // Real DDL straight from Room so schema drift breaks this test loudly.
         val trainsRef = TrainDatabase.inMemory(context)
         val trainsDdl = dumpSchema(trainsRef.openHelper.writableDatabase)
         trainsRef.close()
-        val userRef = UserDatabase.inMemory(context)
-        val userDdl = dumpSchema(userRef.openHelper.writableDatabase)
-        userRef.close()
 
         val callback = object : SupportSQLiteOpenHelper.Callback(3) {
             override fun onCreate(db: SupportSQLiteDatabase) {
                 trainsDdl.forEach { db.execSQL(it) }
-                userDdl.forEach { db.execSQL(it) }
+                v3UserDdl.forEach { db.execSQL(it) }
             }
 
             override fun onUpgrade(
@@ -148,6 +165,58 @@ class UserDatabaseMigrationTest {
             val cached = userDb.cacheDao().get("live:12951:23-SEP-2026")
             assertNotNull(cached)
             assertEquals("{\"ok\":true}", cached!!.json)
+        } finally {
+            userDb.close()
+        }
+    }
+
+    @Test
+    fun `MIGRATION_3_4 also accepts v2-shaped user tables`() = runBlocking {
+        // A file already carrying the Phase C alarm columns (e.g. touched by
+        // a newer build before this migration ran): the explicit 6-column
+        // copy must not column-count-mismatch, and alarm values survive via
+        // INSERT OR REPLACE only where columns exist — verified below.
+        val trainsRef = TrainDatabase.inMemory(context)
+        val trainsDdl = dumpSchema(trainsRef.openHelper.writableDatabase)
+        trainsRef.close()
+        val userRef = UserDatabase.inMemory(context)
+        val userDdl = dumpSchema(userRef.openHelper.writableDatabase)
+        userRef.close()
+
+        val callback = object : SupportSQLiteOpenHelper.Callback(3) {
+            override fun onCreate(db: SupportSQLiteDatabase) {
+                trainsDdl.forEach { db.execSQL(it) }
+                userDdl.forEach { db.execSQL(it) }
+            }
+
+            override fun onUpgrade(
+                db: SupportSQLiteDatabase,
+                oldVersion: Int,
+                newVersion: Int,
+            ) = Unit
+        }
+        val source = FrameworkSQLiteOpenHelperFactory().create(
+            SupportSQLiteOpenHelper.Configuration.builder(context)
+                .name(null)
+                .callback(callback)
+                .build()
+        )
+        val db = source.writableDatabase
+        val now = System.currentTimeMillis()
+        db.execSQL(
+            "INSERT INTO `tracked_trains` (`trainNumber`, `trackedAt`, " +
+                "`watchStationCode`) VALUES ('12952', $now, 'BZA')"
+        )
+
+        TrainDatabase.MIGRATION_3_4.migrate(db)
+        source.close()
+
+        val userDb = Room.databaseBuilder(context, UserDatabase::class.java, "migration-test-user.db")
+            .build()
+        try {
+            val tracked = userDb.trackingDao().get("12952")
+            assertNotNull(tracked)
+            assertEquals(now, tracked!!.trackedAt)
         } finally {
             userDb.close()
         }

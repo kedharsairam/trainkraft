@@ -46,4 +46,12 @@ interface TrackingDao {
     /** Live observation for bell-icon state (reflects delete-on-completion). */
     @Query("SELECT * FROM tracked_trains WHERE trainNumber = :trainNumber")
     fun observe(trainNumber: String): kotlinx.coroutines.flow.Flow<TrackedTrainEntity?>
+
+    /** Sets (or clears, with null) the station-approach alarm target. */
+    @Query("UPDATE tracked_trains SET watchStationCode = :stationCode WHERE trainNumber = :trainNumber")
+    suspend fun setWatchStation(trainNumber: String, stationCode: String?)
+
+    /** One-shot gate for approach notifications (see NotificationPolicy.evaluateApproach). */
+    @Query("UPDATE tracked_trains SET lastApproachFor = :stationCode WHERE trainNumber = :trainNumber")
+    suspend fun markApproachNotified(trainNumber: String, stationCode: String?)
 }
