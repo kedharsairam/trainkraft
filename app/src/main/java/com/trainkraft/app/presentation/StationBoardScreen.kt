@@ -100,7 +100,6 @@ fun StationBoardScreen(
     val sourceAgeMs by viewModel.sourceAgeMs.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val dbError by viewModel.dbError.collectAsState()
-    val usualDelays by viewModel.usualDelays.collectAsState()
 
     val appContext = context.applicationContext
     val use24h by remember(appContext) {
@@ -198,7 +197,6 @@ fun StationBoardScreen(
                         DepartureCard(
                             departure = departure,
                             use24h = use24h,
-                            usualDelayMin = usualDelays[departure.trainNumber],
                             onClick = {
                                 haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                 onTrainClick(departure.trainNumber)
@@ -298,7 +296,6 @@ private fun StationBoardHeader(
 private fun DepartureCard(
     departure: BoardRow,
     use24h: Boolean = true,
-    usualDelayMin: Int? = null,
     onClick: () -> Unit,
 ) {
     val reduceMotion = rememberReduceMotion()
@@ -395,16 +392,6 @@ private fun DepartureCard(
                     )
                 }
             }
-            // Typical-delay badge from the pack arrival prior at this station
-            // ("usually +10" amber / "usually on time" green); missing → no
-            // badge, never invented. Label helper shared with between
-            // (BetweenLogic.usualDelayBadgeLabel).
-            val usualLabel = usualDelayBadgeLabel(usualDelayMin)
-            if (usualLabel != null && usualDelayMin != null) {
-                Box(modifier = Modifier.padding(top = KraftSpacing.Spacing4)) {
-                    BoardUsualChip(arrAvgMin = usualDelayMin, label = usualLabel)
-                }
-            }
         }
         Spacer(Modifier.width(KraftSpacing.Spacing12))
         Column(horizontalAlignment = Alignment.End) {
@@ -456,41 +443,3 @@ private fun DepartureCard(
     }
 }
 
-/**
- * Typical-delay badge for one board row: `"usually +10"` amber /
- * `"usually on time"` green. Muted tonal chip, tabular figures,
- * non-interactive with a full spoken description (pack provenance — never
- * Live). Label text comes from BetweenLogic.usualDelayBadgeLabel (shared,
- * not duplicated).
- */
-@Composable
-private fun BoardUsualChip(arrAvgMin: Int, label: String) {
-    val accent = if (arrAvgMin <= 0) KraftColors.AuroraGreen else KraftColors.AuroraOrange
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier
-            .clip(RoundedCornerShape(KraftRadius.Pill))
-            .background(accent.copy(alpha = 0.12f))
-            .semantics { contentDescription = "Typically $label at this station, 7-day pack average" }
-            .padding(
-                horizontal = KraftSpacing.Spacing8,
-                vertical = KraftSpacing.Spacing4,
-            ),
-    ) {
-        Box(
-            modifier = Modifier
-                .size(6.dp)
-                .clip(CircleShape)
-                .background(accent),
-        )
-        Spacer(Modifier.width(KraftSpacing.Spacing6))
-        Text(
-            text = label,
-            style = tabularFigures(MaterialTheme.typography.labelMedium),
-            color = accent,
-            fontWeight = FontWeight.Medium,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-    }
-}

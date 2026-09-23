@@ -120,9 +120,6 @@ fun TrainDetailScreen(
     val liveError by viewModel.liveError.collectAsState()
     val isLiveLoading by viewModel.isLiveLoading.collectAsState()
     val selectedDate by viewModel.selectedDate.collectAsState()
-    val avgDelay by viewModel.avgDelay.collectAsState()
-    val avgDelayError by viewModel.avgDelayError.collectAsState()
-    val isAvgDelayLoading by viewModel.isAvgDelayLoading.collectAsState()
     val isTracking by viewModel.isTracking.collectAsState()
     val isOfficialSchedule by viewModel.isOfficialSchedule.collectAsState()
     val isLiveServiceActive by viewModel.isLiveServiceActive.collectAsState()
@@ -131,8 +128,7 @@ fun TrainDetailScreen(
     val alarmTriggerAt by viewModel.alarmTriggerAt.collectAsState()
     val instances by viewModel.instances.collectAsState()
     val exceptions by viewModel.exceptions.collectAsState()
-    val predictions by viewModel.predictions.collectAsState()
-    val priors by viewModel.priors.collectAsState()
+    val fogEntry by viewModel.fog.collectAsState()
     val packVintage by viewModel.packVintage.collectAsState()
     val stopAlarms by viewModel.stopAlarms.collectAsState()
     val persistedWatch by viewModel.persistedWatch.collectAsState()
@@ -229,13 +225,6 @@ fun TrainDetailScreen(
         }
     }
 
-    // Load average delay after live status loads
-    LaunchedEffect(liveStatus) {
-        if (liveStatus != null && avgDelay == null && !isAvgDelayLoading) {
-            viewModel.loadAvgDelay()
-        }
-    }
-
     // Answer-first headline (priority: exceptions > arrived > not-started > running).
     val headline = remember(liveStatus, exceptions) {
         liveStatus?.let { live ->
@@ -268,41 +257,18 @@ fun TrainDetailScreen(
         }
     }
 
-    // Live-timeline position (shared by the coach highlight + avg footnote).
+    // Live-timeline position (shared by the coach highlight).
     val liveArrived = remember(liveStatus) { liveStatus?.stops?.map { it.arrived } ?: emptyList() }
     val liveDeparted = remember(liveStatus) { liveStatus?.stops?.map { it.departed } ?: emptyList() }
     val currentLiveIndex = remember(liveArrived, liveDeparted) {
         currentStopIndex(liveArrived, liveDeparted)
     }
-    val currentLiveCode = currentLiveIndex?.let { liveStatus?.stops?.getOrNull(it)?.code }
 
-    // 7-day-average footnote for the current station (existing data only).
-    val avgFootnoteMin = remember(avgDelay, currentLiveCode) {
-        val code = currentLiveCode
-        if (avgDelay == null || code.isNullOrBlank()) {
-            null
-        } else {
-            avgDelay?.stops
-                ?.firstOrNull { it.code.equals(code, ignoreCase = true) }
-                ?.let {
-                    NtesFormats.delayToMinutes(it.departureDelay)
-                        ?: NtesFormats.delayToMinutes(it.arrivalDelay)
-                }
-                ?.takeIf { it > 0 }
-        }
+    // Fog-program notice from the published overlay entry (facts, never
+    // predictions): null = no active program for this train.
+    val seasonalNote = remember(fogEntry, liveStatus) {
+        fogNoticeLabel(fogEntry, running = liveStatus?.runState == 1)
     }
-
-    // Engine predictions keyed by station code (UPPERCASE — matches the VM map).
-    val predictionsByCode = remember(predictions) {
-        predictions?.predictions?.associateBy { it.stationCode.uppercase(Locale.ENGLISH) }
-            .orEmpty()
-    }
-    val positionLabel = remember(predictions) {
-        val journey = predictions ?: return@remember null
-        positionMarkerLabel(journey.positionKm, journey.positionBetween)
-    }
-    val seasonalNote = predictions?.seasonalNote?.takeIf { it.isNotBlank() }
-    val engineAlert = predictions?.serviceAlert?.takeIf { it.isNotBlank() }
 
     // Date picker dialog (fallback only — the instance strip covers dated runs).
     val showDatePicker = remember { mutableStateOf(false) }
@@ -459,11 +425,6 @@ fun TrainDetailScreen(
                                     )
                                 }
                             }
-                            if (positionLabel != null) {
-                                item(key = "position-marker") {
-                                    PositionMarkerRow(label = positionLabel)
-                                }
-                            }
                             val runs = instances
                             if (runs != null && runs.instances.isNotEmpty()) {
                                 item(key = "instances") {
@@ -481,15 +442,6 @@ fun TrainDetailScreen(
                             if (exc != null && exc.hasActiveException()) {
                                 item(key = "exception") {
                                     ExceptionBanner(message = exc.alertMsg)
-                                }
-                            }
-                            // Engine fog alert reuses the red banner variant — only when
-                            // no active server exception (one red banner at a time).
-                            if (engineAlert != null &&
-                                (exc == null || !exc.hasActiveException())
-                            ) {
-                                item(key = "engine-alert") {
-                                    ExceptionBanner(message = engineAlert)
                                 }
                             }
                             item(key = "coach-position") {
@@ -528,8 +480,6 @@ fun TrainDetailScreen(
                                             coachStop = stop
                                         }
                                     },
-                                    predictionsByCode = predictionsByCode,
-                                    priorsByCode = priors,
                                     use24h = use24h,
                                     stopAlarmsByCode = stopAlarms,
                                     // Persisted watch renders timeless-armed rows, but never
@@ -543,12 +493,6 @@ fun TrainDetailScreen(
                                         viewModel.toggleStopAlarm(appContext, stop.code)
                                     },
                                 )
-                            }
-                            val footnote = avgFootnoteMin
-                            if (footnote != null) {
-                                item(key = "avg-footnote") {
-                                    AvgDelayFootnote(delayMinutes = footnote)
-                                }
                             }
                             // Pack-vintage caption once under the timeline; hidden
                             // when the pack is absent (never "unknown").
@@ -661,20 +605,6 @@ fun TrainDetailScreen(
                                         )
                                     }
                                 }
-                            }
-                        }
-                        // Minimal honesty note when average-delay data can't load.
-                        if (avgDelay == null && avgDelayError != null && !isAvgDelayLoading) {
-                            item(key = "avg-delay-error") {
-                                Text(
-                                    text = avgDelayError ?: "",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.padding(
-                                        horizontal = KraftSpacing.Spacing16,
-                                        vertical = KraftSpacing.Spacing4,
-                                    ),
-                                )
                             }
                         }
                         // Offline schedule fallback (no live data): full timetable.

@@ -1,7 +1,6 @@
 package com.trainkraft.app.data
 
 import android.content.Context
-import android.util.Log
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
@@ -23,8 +22,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
  * restore (see [getInstance]).
  * v5 adds the Phase A intelligence-pack tables ([DelayPriorEntity] /
  * [FogOverlayEntity] / [PackMetaEntity], served via [packDao] and filled by
- * [PackImporter] from a pipeline-built `pack.db`): CRIS average-delay priors
- * plus fog-season timetable overlays for the Phase B prediction engine.
+ * [PackImporter] from a pipeline-built `pack.db`): published program facts
+ * (fog seasons, special-train coverage). The priors table is parked per the
+ * reality doctrine — schema stability only, nothing reads it.
  *
  * Pre-population: [Room.databaseBuilder.createFromAsset]("trains.db") is
  * wired in [getInstance] so dropping a `trains.db` file into

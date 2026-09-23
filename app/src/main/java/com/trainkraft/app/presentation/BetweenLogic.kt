@@ -70,34 +70,8 @@ data class BetweenUiRow(
     val travelRaw: String = "",
 )
 
-/** Client-side sort orders for the between-stations list. */
-enum class BetweenSort { DEPARTURE, DURATION, ARRIVAL, SMARTEST }
-
-/**
- * Typical-delay badge label from the pack arrival prior at the destination
- * stop. Null when [arrAvgMin] is null (no pack row → no badge, never
- * invented); `<= 0` means typically on time. Pure — unit-tested. Shared with
- * the station board (same package, no duplication).
- */
-fun usualDelayBadgeLabel(arrAvgMin: Int?): String? = when {
-    arrAvgMin == null -> null
-    arrAvgMin <= 0 -> "usually on time"
-    else -> "usually +$arrAvgMin"
-}
-
-/**
- * Arrival prior for one station out of a train's full pack prior list
- * ([com.trainkraft.app.data.PackDao.priorsForTrain] shape). Returns the
- * `arrAvgMin` of the first row matching [stationCode] (case-insensitive),
- * null when the pack has no row for this station → no badge, never invented.
- * Pure — unit-tested; used by the station board batch.
- */
-fun usualDelayForStation(
-    priors: List<DelayPriorEntity>,
-    stationCode: String,
-): Int? = priors.firstOrNull {
-    it.stationCode.equals(stationCode, ignoreCase = true)
-}?.arrAvgMin
+/** Client-side sort orders for the between-stations list (all timetable facts). */
+enum class BetweenSort { DEPARTURE, DURATION, ARRIVAL }
 
 private val dayTokenTable: Map<String, DayOfWeek> = mapOf(
     "mon" to DayOfWeek.MONDAY,
@@ -240,42 +214,10 @@ private fun arrivalKey(row: BetweenUiRow): Int = row.arrMin + row.arrDayOffset *
 private fun durationKey(row: BetweenUiRow): Int =
     legDurationMinutes(row.depMin, row.depDayOffset, row.arrMin, row.arrDayOffset)
 
-private fun predictedArrivalKey(row: BetweenUiRow, usualDelays: Map<String, Int>): Int {
-    val scheduled = arrivalKey(row)
-    // Documented rule: missing badge (absent key = no pack row) sorts by
-    // schedule — no invented delay. Non-positive priors mean typically on
-    // time, so they add 0 rather than pulling the arrival earlier.
-    val usual = usualDelays[row.trainNumber]?.coerceAtLeast(0) ?: 0
-    return scheduled + usual
-}
-
-private fun comparatorFor(
-    sort: BetweenSort,
-    usualDelays: Map<String, Int> = emptyMap(),
-): Comparator<BetweenUiRow> = when (sort) {
+private fun comparatorFor(sort: BetweenSort): Comparator<BetweenUiRow> = when (sort) {
     BetweenSort.DEPARTURE -> compareBy(::departureKey, { it.trainNumber })
     BetweenSort.DURATION -> compareBy(::durationKey, ::departureKey, { it.trainNumber })
     BetweenSort.ARRIVAL -> compareBy(::arrivalKey, ::departureKey, { it.trainNumber })
-    BetweenSort.SMARTEST -> compareBy(
-        { row: BetweenUiRow -> predictedArrivalKey(row, usualDelays) },
-        ::departureKey,
-        { it.trainNumber },
-    )
-}
-
-/**
- * Train number of the "best pick" header chip: the top card when [sort] is
- * [BetweenSort.SMARTEST] and that card has badge data (a [usualDelays] entry).
- * Null otherwise — no chip, never invented. Pure — unit-tested.
- */
-fun smartestBestPickNumber(
-    visible: List<BetweenUiRow>,
-    sort: BetweenSort,
-    usualDelays: Map<String, Int>,
-): String? {
-    if (sort != BetweenSort.SMARTEST || visible.isEmpty()) return null
-    val top = visible.first()
-    return if (usualDelays.containsKey(top.trainNumber)) top.trainNumber else null
 }
 
 /**
@@ -283,17 +225,12 @@ fun smartestBestPickNumber(
  * (`sortedWith` preserves input order on ties beyond the train-number
  * tiebreak). [typeFilter] `null` or `"All"` ([BETWEEN_ALL_FILTER]) disables
  * type filtering.
- *
- * [BetweenSort.SMARTEST] ranks by predicted arrival = scheduled arrival +
- * usual delay (priors only, no network); trains without badge data sort by
- * schedule (documented rule above), ties break by departure then number.
  */
 fun applyBetweenView(
     rows: List<BetweenUiRow>,
     date: LocalDate,
     typeFilter: String?,
     sort: BetweenSort,
-    usualDelays: Map<String, Int> = emptyMap(),
 ): List<BetweenUiRow> {
     val day = date.dayOfWeek
     val normalizedFilter = typeFilter?.takeUnless { it == BETWEEN_ALL_FILTER }
@@ -301,6 +238,6 @@ fun applyBetweenView(
         .asSequence()
         .filter { runsOnDay(it.dayOfRun, day) }
         .filter { normalizedFilter == null || it.typeDesc == normalizedFilter }
-        .sortedWith(comparatorFor(sort, usualDelays))
+        .sortedWith(comparatorFor(sort))
         .toList()
 }

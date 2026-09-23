@@ -13,7 +13,6 @@ import com.trainkraft.app.TravelService
 import com.trainkraft.app.arrivedWithinM
 import com.trainkraft.app.data.TrainDatabase
 import com.trainkraft.app.haversineKm
-import com.trainkraft.app.liveEtaMin
 import com.trainkraft.app.nextStopAfter
 import com.trainkraft.app.smoothedSpeedKmh
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -32,15 +31,13 @@ import kotlinx.coroutines.launch
  * [TRAVEL_POLL_MS]: the ViewModel survives rotation and re-emits via
  * StateFlow, with zero binder ceremony. Process death wipes the VM *and*
  * the service with no persistence promise — the session is over, and the
- * screen honestly falls back to waiting/fallback copy (no false promise of
- * resume).
+ * screen honestly falls back to waiting copy (no false promise of resume).
  *
  * GPS-ONLY: this VM never touches the network. Station coordinates come
  * from the read-only GTFS DAO ([trainDao] route + `searchStations`
  * exact-code pick — the existing VM DAO pattern from
- * [TrainDetailViewModel]); predictions are NOT recomputed here — the caller
- * supplies the engine fallback labels once via [setFallback] (reuse of the
- * detail screen's existing predictions, no-fix fallback).
+ * [TrainDetailViewModel]). No arrival-time estimates anywhere: speed,
+ * remaining distance and next stop are GPS measurements.
  */
 class TravelViewModel(
     application: Application,
@@ -72,15 +69,6 @@ class TravelViewModel(
 
     /** Session-held next stop (screen-scoped; mirrors the service's hold). */
     private var heldNext: String? = null
-
-    // Engine fallback labels from the caller (detail screen's predictions).
-    private var fallbackStopLabel: String? = null
-    private var fallbackBasisLabel: String? = null
-
-    fun setFallback(stopLabel: String?, basisLabel: String?) {
-        fallbackStopLabel = stopLabel
-        fallbackBasisLabel = basisLabel
-    }
 
     /** Screen-side ticker: poll the trace table, re-derive, re-emit. */
     fun startTravelTicker() {
@@ -167,11 +155,6 @@ class TravelViewModel(
                     }
                 }
             }
-            val eta = if (remaining != null && speed != null) {
-                liveEtaMin(remaining, speed)
-            } else {
-                null
-            }
             _display.value = mapTravelDisplay(
                 hasFix = hasFix,
                 stale = stale,
@@ -179,12 +162,9 @@ class TravelViewModel(
                 nextCode = next,
                 nextName = next?.let { nameByCode[it] },
                 remainingKm = remaining,
-                etaMin = eta,
                 legCoveredKm = covered,
                 legTotalKm = total,
                 arrivedCode = arrived,
-                fallbackStopLabel = fallbackStopLabel,
-                fallbackBasisLabel = fallbackBasisLabel,
             )
         }
     }
@@ -262,6 +242,8 @@ enum class TravelGpsBadge { LIVE, SEARCHING, WAITING }
 /**
  * Display model for one travel-screen frame. [dimmed] means the numbers are
  * last-known (stale) — the screen greys them and never live-presents them.
+ * No arrival-time estimates anywhere: speed, remaining distance and next stop
+ * are measurements; the screen never forecasts.
  */
 data class TravelDisplay(
     val badge: TravelGpsBadge,
@@ -269,7 +251,6 @@ data class TravelDisplay(
     val dimmed: Boolean,
     val nextStopText: String?,
     val detailText: String,
-    val basisLabel: String?,
     val progress: Pair<Int, Int>?,
     val arrivedCode: String?,
     val announcement: String,
@@ -277,7 +258,7 @@ data class TravelDisplay(
 
 /**
  * Stale check on the last-fix age. Null (no fix ever) is NOT stale — it is
- * the separate no-fix state (engine-prediction fallback).
+ * the separate bare-waiting state.
  */
 fun isGpsStale(lastFixAgeMs: Long?): Boolean =
     lastFixAgeMs != null && lastFixAgeMs > GPS_STALE_MS
@@ -291,18 +272,8 @@ fun formatTravelSpeed(speedKmh: Double?): String =
     if (speedKmh == null) "waiting" else "${speedKmh.toInt()} km/h"
 
 /**
- * Live-ETA text. Null ([liveEtaMin] withheld below the moving floor — the
- * "waiting" contract) reads "waiting"; interpolated values carry the
- * mandatory "~" prefix, clamped to a minimum of ~1 min.
- */
-fun formatTravelEta(etaMin: Double?): String {
-    if (etaMin == null) return "waiting"
-    return "~${maxOf(1, etaMin.toInt())} min"
-}
-
-/**
  * Remaining-distance text. Null (unknown leg — no coordinates) → null (the
- * caller hides the distance, never guesses). Interpolated values carry "~";
+ * caller hides the distance, never guesses). GPS-derived values carry "~";
  * sub-km legs read in metres.
  */
 fun formatRemainingKm(remainingKm: Double?): String? {
@@ -329,8 +300,9 @@ fun legProgressKm(coveredKm: Double?, totalKm: Double?): Pair<Int, Int>? {
 /**
  * Maps one frame of travel state to its display model (the unit-tested
  * state-mapping core). Priority: advisory arrival > live GPS (fresh or
- * stale-greyed) > engine-prediction fallback > bare waiting. [announcement]
- * is the single TalkBack sentence (speed + next + ETA in one go).
+ * stale-greyed) > bare waiting. [announcement] is the single TalkBack
+ * sentence (speed + next stop + distance). No arrival-time estimates:
+ * remaining distance is a GPS measurement, never a forecast.
  */
 fun mapTravelDisplay(
     hasFix: Boolean,
@@ -339,12 +311,9 @@ fun mapTravelDisplay(
     nextCode: String?,
     nextName: String?,
     remainingKm: Double?,
-    etaMin: Double?,
     legCoveredKm: Double?,
     legTotalKm: Double?,
     arrivedCode: String?,
-    fallbackStopLabel: String?,
-    fallbackBasisLabel: String?,
 ): TravelDisplay {
     val speedText = formatTravelSpeed(speedKmh)
     if (arrivedCode != null) {
@@ -354,25 +323,22 @@ fun mapTravelDisplay(
             dimmed = stale,
             nextStopText = arrivedCode,
             detailText = "Arrived — advisory GPS estimate, verify on the platform",
-            basisLabel = null,
             progress = null,
             arrivedCode = arrivedCode,
             announcement = "Arrived at $arrivedCode. Advisory GPS estimate. Speed $speedText.",
         )
     }
     if (hasFix && nextCode != null) {
-        val eta = formatTravelEta(etaMin)
         val rem = formatRemainingKm(remainingKm)
-        val detail = if (rem != null) "$rem · $eta" else eta
         val next = if (nextName.isNullOrBlank()) nextCode else "$nextCode · $nextName"
         val prefix = if (stale) "GPS searching. Last known values. " else ""
+        val detail = rem ?: "waiting"
         return TravelDisplay(
             badge = if (stale) TravelGpsBadge.SEARCHING else TravelGpsBadge.LIVE,
             speedText = speedText,
             dimmed = stale,
             nextStopText = next,
             detailText = detail,
-            basisLabel = null,
             progress = legProgressKm(legCoveredKm, legTotalKm),
             arrivedCode = null,
             announcement = "$prefix$speedText. Next stop $next. $detail.",
@@ -386,39 +352,21 @@ fun mapTravelDisplay(
             speedText = speedText,
             dimmed = stale,
             nextStopText = null,
-            detailText = formatTravelEta(etaMin),
-            basisLabel = null,
+            detailText = "Next stop unknown",
             progress = null,
             arrivedCode = null,
             announcement = "${prefix}Speed $speedText. Next stop unknown.",
         )
     }
-    // No fix yet → engine prediction + basis chip (existing components);
-    // bare waiting when even the fallback is absent.
-    return if (fallbackStopLabel != null) {
-        TravelDisplay(
-            badge = TravelGpsBadge.WAITING,
-            speedText = speedText,
-            dimmed = false,
-            nextStopText = fallbackStopLabel,
-            detailText = "Estimated from server data until GPS locks",
-            basisLabel = fallbackBasisLabel,
-            progress = null,
-            arrivedCode = null,
-            announcement = "Waiting for GPS. Next stop $fallbackStopLabel, " +
-                "estimated from server data.",
-        )
-    } else {
-        TravelDisplay(
-            badge = TravelGpsBadge.WAITING,
-            speedText = speedText,
-            dimmed = false,
-            nextStopText = null,
-            detailText = "Waiting for GPS…",
-            basisLabel = null,
-            progress = null,
-            arrivedCode = null,
-            announcement = "Waiting for GPS.",
-        )
-    }
+    // No fix yet → bare waiting. No server predictions, no fallback labels.
+    return TravelDisplay(
+        badge = TravelGpsBadge.WAITING,
+        speedText = speedText,
+        dimmed = false,
+        nextStopText = null,
+        detailText = "Waiting for GPS…",
+        progress = null,
+        arrivedCode = null,
+        announcement = "Waiting for GPS.",
+    )
 }

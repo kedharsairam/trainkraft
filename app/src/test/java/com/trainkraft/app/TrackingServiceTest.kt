@@ -65,19 +65,19 @@ class TrackingServiceTest {
     )
 
     @Test
-    fun `scheduled arrival plus predicted delay drives boost`() {
+    fun `scheduled arrival drives boost`() {
         val stops = listOf(
             stop("MMCT", std = "09:30"),
             stop("BRC", sta = "10:00"),
         )
-        // Mid-route anchor: next is BRC, 10:00 + 5 predicted = 10:05 IST.
+        // Mid-route anchor: next is BRC, scheduled 10:00, now 09:55 IST.
         assertEquals(
-            10,
-            minutesUntilNextStop(stops, anchorIndex = 0, mapOf("BRC" to 5), istEpoch(23, 9, 55)),
+            5,
+            minutesUntilNextStop(stops, anchorIndex = 0, istEpoch(23, 9, 55)),
         )
         assertEquals(
             BOOST_POLL_INTERVAL_MS,
-            pollIntervalFor(minutesUntilNextStop(stops, 0, mapOf("BRC" to 5), istEpoch(23, 9, 55))),
+            pollIntervalFor(minutesUntilNextStop(stops, 0, istEpoch(23, 9, 55))),
         )
     }
 
@@ -89,7 +89,7 @@ class TrackingServiceTest {
         )
         assertEquals(
             5,
-            minutesUntilNextStop(stops, anchorIndex = null, emptyMap(), istEpoch(23, 9, 55)),
+            minutesUntilNextStop(stops, anchorIndex = null, istEpoch(23, 9, 55)),
         )
     }
 
@@ -99,23 +99,23 @@ class TrackingServiceTest {
         // Base prefers scheduled arrival (23:50) here; ETA-first ordering is
         // pinned by the next test. Rollover: arrival 00:10 vs 23:55 now.
         val late = listOf(stop("BRC", sta = "00:10"))
-        assertEquals(15, minutesUntilNextStop(late, null, emptyMap(), istEpoch(23, 23, 55)))
+        assertEquals(15, minutesUntilNextStop(late, null, istEpoch(23, 23, 55)))
     }
 
     @Test
     fun `unparseable times degrade to null`() {
         val stops = listOf(stop("BRC"))
-        assertNull(minutesUntilNextStop(stops, null, emptyMap(), istEpoch(23, 9, 55)))
+        assertNull(minutesUntilNextStop(stops, null, istEpoch(23, 9, 55)))
     }
 
     @Test
     fun `anchor at last stop means no next stop`() {
         val stops = listOf(stop("A", sta = "10:00"), stop("B", sta = "12:00"))
-        assertNull(minutesUntilNextStop(stops, anchorIndex = 1, emptyMap(), istEpoch(23, 9, 55)))
+        assertNull(minutesUntilNextStop(stops, anchorIndex = 1, istEpoch(23, 9, 55)))
         // …while a mid-route anchor picks the following stop.
         assertEquals(
             125,
-            minutesUntilNextStop(stops, anchorIndex = 0, emptyMap(), istEpoch(23, 9, 55)),
+            minutesUntilNextStop(stops, anchorIndex = 0, istEpoch(23, 9, 55)),
         )
     }
 

@@ -43,30 +43,29 @@ class TravelServiceLogicTest {
     }
 
     @Test
-    fun `moving copy carries speed next-stop and ETA`() {
+    fun `moving copy carries speed next-stop and distance`() {
         val s = travelSummaryFor("12951", 62.0, 24.7, "BRC")
         assertTrue(s.text.contains("62 km/h"))
         assertTrue(s.text.contains("BRC"))
-        assertTrue(s.text.contains("24 min"))
+        assertTrue(s.text.contains("~24 km"))
+        assertTrue(!s.text.contains("min"))
     }
 
     @Test
-    fun `halt copy never shows a bogus ETA`() {
-        // 5 km/h at a halt: "waiting · next BRC", even with a stale ETA held.
+    fun `halt copy never shows a bogus count`() {
+        // 5 km/h at a halt: "waiting · next BRC", distance suppressed.
         val s = travelSummaryFor("12951", 5.0, 999.0, "BRC")
         assertTrue("got: ${s.text}", s.text.contains("waiting"))
         assertTrue("got: ${s.text}", !s.text.contains("999"))
     }
 
     @Test
-    fun `tunnel hold shows the held ETA, fresh tunnel waits`() {
-        // Held ETA with no current speed: still counts down (tunnel hold).
+    fun `null speed keeps distance, sub-km reads metres`() {
         val held = travelSummaryFor("12951", null, 24.0, "BRC")
-        assertTrue("got: ${held.text}", held.text.contains("24 min"))
-        // No ETA ever: next stop known, waiting on fixes.
-        val fresh = travelSummaryFor("12951", null, null, "BRC")
-        assertTrue("got: ${fresh.text}", fresh.text.contains("waiting"))
-        assertTrue("got: ${fresh.text}", fresh.text.contains("BRC"))
+        assertTrue("got: ${held.text}", held.text.contains("waiting"))
+        assertTrue("got: ${held.text}", held.text.contains("~24 km"))
+        val meters = travelSummaryFor("12951", null, 0.45, "BRC")
+        assertTrue("got: ${meters.text}", meters.text.contains("~450 m"))
         // No route at all: waiting for GPS.
         val noroute = travelSummaryFor("12951", null, null, null)
         assertTrue("got: ${noroute.text}", noroute.text.contains("waiting for GPS"))

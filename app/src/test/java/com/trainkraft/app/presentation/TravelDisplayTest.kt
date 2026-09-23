@@ -7,30 +7,13 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Covers the pure Phase D travel-screen core: ETA/speed/distance
- * formatting, the GPS-stale boundary, leg-progress guards and the
- * [mapTravelDisplay] state mapping (live / stale-greyed / arrival /
- * prediction-fallback / bare waiting). Plain JUnit — no Android needed.
+ * Covers the pure Phase D travel-screen core: speed/distance formatting,
+ * the GPS-stale boundary, leg-progress guards and the [mapTravelDisplay]
+ * state mapping (live / stale-greyed / arrival / bare waiting). No
+ * arrival-time estimates anywhere — speed, distance and next stop are
+ * measurements. Plain JUnit — no Android needed.
  */
 class TravelDisplayTest {
-
-    // ------------------------------------------------------- ETA formatting
-
-    @Test
-    fun `null ETA reads waiting, never a bogus count`() {
-        assertEquals("waiting", formatTravelEta(null))
-    }
-
-    @Test
-    fun `ETA carries tilde prefix and truncates like the service copy`() {
-        assertEquals("~8 min", formatTravelEta(8.9))
-        assertEquals("~12 min", formatTravelEta(12.0))
-    }
-
-    @Test
-    fun `sub-minute ETA clamps to 1 min, never 0`() {
-        assertEquals("~1 min", formatTravelEta(0.4))
-    }
 
     // ----------------------------------------------------- speed formatting
 
@@ -67,7 +50,7 @@ class TravelDisplayTest {
     // -------------------------------------------------------- stale boundary
 
     @Test
-    fun `no fix is not stale — it is the separate fallback state`() {
+    fun `no fix is not stale — it is the separate waiting state`() {
         assertFalse(isGpsStale(null))
     }
 
@@ -98,7 +81,6 @@ class TravelDisplayTest {
     private fun live(
         stale: Boolean = false,
         speed: Double? = 87.4,
-        eta: Double? = 8.2,
         remaining: Double? = 12.6,
     ) = mapTravelDisplay(
         hasFix = true,
@@ -107,12 +89,9 @@ class TravelDisplayTest {
         nextCode = "NDLS",
         nextName = "New Delhi",
         remainingKm = remaining,
-        etaMin = eta,
         legCoveredKm = 3.0,
         legTotalKm = 15.0,
         arrivedCode = null,
-        fallbackStopLabel = "NDLS · New Delhi",
-        fallbackBasisLabel = "typical pattern",
     )
 
     @Test
@@ -122,11 +101,10 @@ class TravelDisplayTest {
         assertFalse(d.dimmed)
         assertEquals("87 km/h", d.speedText)
         assertEquals("NDLS · New Delhi", d.nextStopText)
-        assertEquals("~12 km · ~8 min", d.detailText)
-        assertNull(d.basisLabel)
+        assertEquals("~12 km", d.detailText)
         assertEquals(3 to 15, d.progress)
         assertNull(d.arrivedCode)
-        assertEquals("87 km/h. Next stop NDLS · New Delhi. ~12 km · ~8 min.", d.announcement)
+        assertEquals("87 km/h. Next stop NDLS · New Delhi. ~12 km.", d.announcement)
     }
 
     @Test
@@ -136,15 +114,15 @@ class TravelDisplayTest {
         assertTrue(d.dimmed)
         // Last values still shown (greyed) — never live-presented as fresh.
         assertEquals("87 km/h", d.speedText)
-        assertEquals("~12 km · ~8 min", d.detailText)
+        assertEquals("~12 km", d.detailText)
         assertTrue(d.announcement.startsWith("GPS searching. Last known values. "))
     }
 
     @Test
-    fun `withheld ETA reads waiting beside a known distance`() {
-        val d = live(speed = null, eta = null)
+    fun `known distance shows without speed`() {
+        val d = live(speed = null)
         assertEquals("waiting", d.speedText)
-        assertEquals("~12 km · waiting", d.detailText)
+        assertEquals("~12 km", d.detailText)
     }
 
     @Test
@@ -156,12 +134,9 @@ class TravelDisplayTest {
             nextCode = null,
             nextName = null,
             remainingKm = 0.2,
-            etaMin = null,
             legCoveredKm = null,
             legTotalKm = null,
             arrivedCode = "NDLS",
-            fallbackStopLabel = null,
-            fallbackBasisLabel = null,
         )
         assertEquals("NDLS", d.arrivedCode)
         assertEquals("NDLS", d.nextStopText)
@@ -170,7 +145,7 @@ class TravelDisplayTest {
     }
 
     @Test
-    fun `no fix falls back to engine prediction plus basis`() {
+    fun `no fix is bare waiting, never a forecast`() {
         val d = mapTravelDisplay(
             hasFix = false,
             stale = false,
@@ -178,37 +153,9 @@ class TravelDisplayTest {
             nextCode = null,
             nextName = null,
             remainingKm = null,
-            etaMin = null,
             legCoveredKm = null,
             legTotalKm = null,
             arrivedCode = null,
-            fallbackStopLabel = "NDLS · New Delhi",
-            fallbackBasisLabel = "typical pattern",
-        )
-        assertEquals(TravelGpsBadge.WAITING, d.badge)
-        assertFalse(d.dimmed)
-        assertEquals("waiting", d.speedText)
-        assertEquals("NDLS · New Delhi", d.nextStopText)
-        assertEquals("typical pattern", d.basisLabel)
-        assertTrue(d.detailText.contains("server data"))
-        assertTrue(d.announcement.startsWith("Waiting for GPS."))
-    }
-
-    @Test
-    fun `no fix without fallback is bare waiting`() {
-        val d = mapTravelDisplay(
-            hasFix = false,
-            stale = false,
-            speedKmh = null,
-            nextCode = null,
-            nextName = null,
-            remainingKm = null,
-            etaMin = null,
-            legCoveredKm = null,
-            legTotalKm = null,
-            arrivedCode = null,
-            fallbackStopLabel = null,
-            fallbackBasisLabel = null,
         )
         assertEquals(TravelGpsBadge.WAITING, d.badge)
         assertNull(d.nextStopText)
