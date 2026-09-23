@@ -77,9 +77,11 @@ MAX_RETRIES = 3
 
 # Circuit breaker for server pushback (resets/timeouts/429/5xx clustering):
 # N consecutive transport-side failures anywhere -> COOLDOWN_S pause.
-# Any successful server response resets the streak.
+# Any successful server response resets the streak. Cooldown raised to 15
+# min on 2026-09-23 night after resets persisted across runs (server
+# throttling the source IP, not per-train errors).
 CONSECUTIVE_COOLDOWN_N = 8
-COOLDOWN_S = 300
+COOLDOWN_S = 900
 
 STAGING_DDL = """
 CREATE TABLE IF NOT EXISTS staging_priors(
@@ -375,7 +377,7 @@ def main(argv=None):
                    help="only first N trains of GTFS order (0=all)")
     p.add_argument("--trains", default="",
                    help="explicit comma list, e.g. 12952,12787 (for testing)")
-    p.add_argument("--throttle", type=float, default=2.0,
+    p.add_argument("--throttle", type=float, default=2.5,
                    help="base politeness delay in seconds (jitter +0-0.5s "
                         "always added)")
     p.add_argument("--resume", dest="resume", action="store_true",
