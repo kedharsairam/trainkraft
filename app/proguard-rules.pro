@@ -26,6 +26,9 @@
 -keep class com.trainkraft.app.data.StopTimeEntity { *; }
 -keep class com.trainkraft.app.data.TrackedTrainEntity { *; }
 -keep class com.trainkraft.app.data.CachedResponseEntity { *; }
+-keep class com.trainkraft.app.data.DelayPriorEntity { *; }
+-keep class com.trainkraft.app.data.FogOverlayEntity { *; }
+-keep class com.trainkraft.app.data.PackMetaEntity { *; }
 
 # User database (privacy split: tracked trains + response cache in user.db)
 -keep class com.trainkraft.app.data.UserDatabase { *; }
