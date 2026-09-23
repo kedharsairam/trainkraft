@@ -1,0 +1,8 @@
+{
+  "_header": "TrainKraft bundled NTES key snapshot. Refresh this file each release from the repo-root ntes-keys.json (same shape; values are client keys, not secrets). CI does NOT verify this file — a stale/invalid snapshot degrades to the hardcoded FALLBACK error path, never a new crash.",
+  "key": "8EA4DB2CC1EB3DC5",
+  "iv": "7DC5EB3BB4DB6EA8",
+  "sckey": "645fbc1e56e23365f2f3c204ae0899f6",
+  "endpoint": "https://enquiry.indianrail.gov.in/crisns/AppServAnd",
+  "version": 1
+}
