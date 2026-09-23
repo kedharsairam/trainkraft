@@ -17,6 +17,8 @@ object SettingsStore {
     private val KEY_AUTO_REFRESH_LIVE = booleanPreferencesKey("auto_refresh_live")
     private val KEY_CACHE_DURATION_HOURS = intPreferencesKey("cache_duration_hours")
     private val KEY_USE_24H = booleanPreferencesKey("use_24h")
+    /** First-Go-live onboarding sheet shown (Phase C live tracking). */
+    private val KEY_LIVE_TRACKING_ONBOARDING_SHOWN = booleanPreferencesKey("live_tracking_onboarding_shown")
 
     const val DEFAULT_AUTO_REFRESH_LIVE = true
     const val DEFAULT_CACHE_DURATION_HOURS = 24
@@ -70,6 +72,18 @@ object SettingsStore {
     suspend fun setUse24h(context: Context, enabled: Boolean) {
         context.settingsDataStore.edit { prefs ->
             prefs[KEY_USE_24H] = enabled
+        }
+    }
+
+    /** First-Go-live onboarding sheet shown-flag (default false = show once). */
+    fun liveTrackingOnboardingShownFlow(context: Context): Flow<Boolean> =
+        context.settingsDataStore.data.map { prefs ->
+            prefs[KEY_LIVE_TRACKING_ONBOARDING_SHOWN] ?: false
+        }
+
+    suspend fun setLiveTrackingOnboardingShown(context: Context, shown: Boolean) {
+        context.settingsDataStore.edit { prefs ->
+            prefs[KEY_LIVE_TRACKING_ONBOARDING_SHOWN] = shown
         }
     }
 }
