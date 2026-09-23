@@ -100,6 +100,7 @@ private val TimelineDividerStartPadding =
 fun TrainDetailScreen(
     trainNumber: String,
     onBack: () -> Unit,
+    onTravel: (String) -> Unit = {},
 ) {
     val context = LocalContext.current
     val haptics = LocalHapticFeedback.current
@@ -133,6 +134,7 @@ fun TrainDetailScreen(
     val predictions by viewModel.predictions.collectAsState()
     val priors by viewModel.priors.collectAsState()
     val packVintage by viewModel.packVintage.collectAsState()
+    val stopAlarms by viewModel.stopAlarms.collectAsState()
 
     // Notification permission launcher (Android 13+)
     val notifPermissionLauncher = rememberLauncherForActivityResult(
@@ -142,17 +144,16 @@ fun TrainDetailScreen(
     }
 
     // Phase D on-board entry: location launcher is caller-owned (this screen
-    // launches the system dialog). Granted → start GPS service + open the
-    // travel screen. Denied → server tracking (bell / Go-live) is unchanged
-    // and we never re-prompt (no nagging — documented decision).
-    var showTravel by remember { mutableStateOf(false) }
+    // launches the system dialog). Granted → start GPS service + open travel
+    // via the travel route. Denied → server tracking (bell / Go-live) is
+    // unchanged and we never re-prompt (no nagging — documented decision).
     var showTravelRationale by remember { mutableStateOf(false) }
     val travelPermissionLauncher = rememberLauncherForActivityResult(
         contract = androidx.activity.result.contract.ActivityResultContracts.RequestPermission(),
     ) { granted ->
         if (granted) {
             TravelService.start(context.applicationContext, trainNumber)
-            showTravel = true
+            onTravel(trainNumber)
         }
     }
 
@@ -215,12 +216,12 @@ fun TrainDetailScreen(
         }
     }
 
-    // Phase D on-board entry: granted → GPS service + travel screen;
+    // Phase D on-board entry: granted → GPS service + travel route;
     // missing → rationale dialog first (system dialog stays caller-launched).
     fun requestOnBoard() {
         if (PermissionFlow.hasFineLocation(context)) {
             TravelService.start(appContext, trainNumber)
-            showTravel = true
+            onTravel(trainNumber)
         } else {
             showTravelRationale = true
         }
@@ -293,16 +294,6 @@ fun TrainDetailScreen(
     val predictionsByCode = remember(predictions) {
         predictions?.predictions?.associateBy { it.stationCode.uppercase(Locale.ENGLISH) }
             .orEmpty()
-    }
-    // Phase D no-fix fallback: next unreached server stop + its engine basis
-    // chip, shown on the travel screen until GPS locks (existing predictions
-    // reused as fallback — PredictionEngine itself is untouched).
-    val travelFallbackNext = remember(liveStatus) {
-        liveStatus?.nextUnreachedStop()
-    }
-    val travelFallbackBasis = remember(predictionsByCode, travelFallbackNext) {
-        travelFallbackNext?.let { predictionsByCode[it.code.uppercase(Locale.ENGLISH)] }
-            ?.let { basisChipLabel(it.basis) }
     }
     val positionLabel = remember(predictions) {
         val journey = predictions ?: return@remember null
@@ -538,6 +529,11 @@ fun TrainDetailScreen(
                                     predictionsByCode = predictionsByCode,
                                     priorsByCode = priors,
                                     use24h = use24h,
+                                    stopAlarmsByCode = stopAlarms,
+                                    onToggleStopAlarm = { stop ->
+                                        haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                        viewModel.toggleStopAlarm(appContext, stop.code)
+                                    },
                                 )
                             }
                             val footnote = avgFootnoteMin
@@ -790,19 +786,8 @@ fun TrainDetailScreen(
         )
     }
 
-    // Phase D travel screen: state-driven full-screen overlay (no nav-graph
-    // change — TrainKraftNavHost is outside this unit's owned files, so the
-    // route is deferred; the screen covers the detail until closed).
-    if (showTravel) {
-        TravelScreen(
-            trainNumber = trainNumber,
-            fallbackStopLabel = travelFallbackNext?.let {
-                if (it.name.isBlank()) it.code else "${it.code} · ${it.name}"
-            },
-            fallbackBasisLabel = travelFallbackBasis,
-            onClose = { showTravel = false },
-        )
-    }
+    // Phase D travel screen lives on the travel route now (NavHost) — the
+    // overlay path is deleted, not kept as fallback.
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

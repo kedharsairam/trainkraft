@@ -4,18 +4,26 @@ import android.app.Application
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.trainkraft.app.TrainKraftApp
+import com.trainkraft.app.data.LiveStatusDto
+import com.trainkraft.app.data.LoadResult
 import com.trainkraft.app.data.StationEntity
 import com.trainkraft.app.BuildConfig
 import com.trainkraft.app.data.TrainDatabase
 import com.trainkraft.app.data.UserDatabase
 import com.trainkraft.app.data.TrainEntity
 import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import java.util.TimeZone
 
 /**
  * Search state: debounced (300ms) station + train lookup.
@@ -27,6 +35,7 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
 
     private val dao = TrainDatabase.getInstance(application).trainDao()
     private val trackingDao = UserDatabase.getInstance(application).trackingDao()
+    private val repo = (application as? TrainKraftApp)?.container?.ntesRepository
 
     private val _query = MutableStateFlow("")
     val query: StateFlow<String> = _query.asStateFlow()
@@ -48,6 +57,17 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
 
     private val _tracked = MutableStateFlow<List<TrackedRow>>(emptyList())
     val tracked: StateFlow<List<TrackedRow>> = _tracked.asStateFlow()
+
+    /**
+     * Live enrichment for the tracked section, keyed by train number. Base
+     * rows publish immediately; each entry lands as its `liveStatus` call
+     * resolves. Absent key = still loading or silently failed → the card
+     * falls back to the number+name row, never blocks, never invents.
+     */
+    private val _liveSummaries = MutableStateFlow<Map<String, TrackedLiveSummary>>(emptyMap())
+    val liveSummaries: StateFlow<Map<String, TrackedLiveSummary>> = _liveSummaries.asStateFlow()
+
+    private var liveEnrichJob: Job? = null
 
     init {
         refreshTracked()
@@ -122,12 +142,20 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch {
             try {
                 val rows = trackingDao.getAll()
-                _tracked.value = rows.map { row ->
+                val base = rows.map { row ->
                     val name = dao.searchTrains(row.trainNumber)
                         .firstOrNull { it.trainNumber.equals(row.trainNumber, ignoreCase = true) }
                         ?.name
                     TrackedRow(trainNumber = row.trainNumber, trainName = name)
                 }
+                // Base rows publish immediately — the section never waits on
+                // the network; live enrichment lands incrementally below.
+                _tracked.value = base
+                val numbers = base.map { it.trainNumber }.toSet()
+                if (_liveSummaries.value.keys.any { it !in numbers }) {
+                    _liveSummaries.value = _liveSummaries.value.filterKeys { it in numbers }
+                }
+                enrichTrackedLive(base.map { it.trainNumber })
             } catch (e: Exception) {
                 if (BuildConfig.DEBUG) {
                     Log.e("SearchViewModel", "refreshTracked failed", e)
@@ -136,6 +164,43 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
             }
         }
     }
+
+    /**
+     * One `liveStatus(number, today)` call per tracked train (2-3 typical),
+     * sequential, each silent-failing to the base-row fallback. Runs after
+     * the base rows publish so enrichment never blocks the section.
+     */
+    private fun enrichTrackedLive(numbers: List<String>) {
+        liveEnrichJob?.cancel()
+        val r = repo ?: return
+        if (numbers.isEmpty()) return
+        liveEnrichJob = viewModelScope.launch {
+            val date = ntesTodayLabel()
+            for (number in numbers.distinct()) {
+                try {
+                    val dto = when (val res = r.liveStatus(number, date)) {
+                        is LoadResult.Live -> res.value
+                        is LoadResult.Offline -> res.value
+                        is LoadResult.Failed -> null
+                    }
+                    val summary = dto?.let { trackedLiveSummaryFrom(it) }
+                    if (summary != null) {
+                        _liveSummaries.value = _liveSummaries.value + (number to summary)
+                    }
+                } catch (e: Exception) {
+                    if (BuildConfig.DEBUG) {
+                        Log.e("SearchViewModel", "tracked live failed: ${e.message}")
+                    }
+                    // Per-train silent fail → card keeps its base row.
+                }
+            }
+        }
+    }
+
+    private fun ntesTodayLabel(): String =
+        SimpleDateFormat("dd-MMM-yyyy", Locale.ENGLISH).apply {
+            timeZone = TimeZone.getTimeZone("Asia/Kolkata")
+        }.format(Date()).uppercase(Locale.ENGLISH)
 
     /**
      * Untracks a train: same persistence path as TrainDetail's bell
@@ -153,6 +218,7 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
                     Log.e("SearchViewModel", "untrack failed", e)
                 }
             } finally {
+                _liveSummaries.value = _liveSummaries.value - trainNumber
                 refreshTracked()
             }
         }
@@ -173,3 +239,43 @@ data class TrackedRow(
 /** Header label for the home tracked-trains section. Pure — unit tested. */
 fun trackedSectionLabel(count: Int): String =
     if (count == 1) "Tracked trains (1)" else "Tracked trains ($count)"
+
+/**
+ * Live enrichment for one tracked home card: the NTES status line plus the
+ * delay minutes for [DelayChip] and the journey progress % (null when the
+ * payload carries no total distance — the card then shows no progress,
+ * never a guessed one). Pure — unit tested.
+ */
+data class TrackedLiveSummary(
+    val statusText: String,
+    val delayMin: Int,
+    val progressPercent: Int?,
+)
+
+/**
+ * Maps a live-status payload to its home-card summary. Null when the payload
+ * carries no status line (blank [LiveStatusDto.statusText]) — the card falls
+ * back to the number+name row instead of showing an empty summary.
+ * Pure — unit tested.
+ */
+fun trackedLiveSummaryFrom(dto: LiveStatusDto): TrackedLiveSummary? {
+    val status = dto.statusText.trim()
+    if (status.isEmpty()) return null
+    val progress = if (dto.totalDistance > 0) dto.progressPercent() else null
+    return TrackedLiveSummary(
+        statusText = status,
+        delayMin = dto.delayMin,
+        progressPercent = progress,
+    )
+}
+
+/**
+ * TalkBack label for one tracked card: number + name, then the live status
+ * and delay when enrichment has landed. Pure — unit tested.
+ */
+fun trackedCardDescription(row: TrackedRow, live: TrackedLiveSummary?): String {
+    val base = if (row.trainName.isNullOrBlank()) row.trainNumber
+    else "${row.trainNumber} ${row.trainName}"
+    if (live == null) return base
+    return "$base, ${live.statusText}, delay ${formatDelay(live.delayMin)}"
+}

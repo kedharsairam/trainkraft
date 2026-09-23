@@ -20,6 +20,7 @@ import com.trainkraft.app.presentation.SearchScreen
 import com.trainkraft.app.presentation.SettingsScreen
 import com.trainkraft.app.presentation.StationBoardScreen
 import com.trainkraft.app.presentation.TrainDetailScreen
+import com.trainkraft.app.presentation.TravelScreen
 
 /**
  * Apple-style navigation transitions:
@@ -68,6 +69,7 @@ object TrainKraftDestinations {
 
     const val TRAIN_DETAIL_ROUTE = "trainDetail/{trainNumber}"
     const val STATION_BOARD_ROUTE = "stationBoard/{stationCode}"
+    const val TRAVEL_ROUTE = "travel/{trainNumber}"
 
     private val TrainNumberRegex = Regex("^[0-9]{4,6}$")
 
@@ -81,6 +83,12 @@ object TrainKraftDestinations {
         val trimmed = trainNumber.trim()
         require(isValidTrainNumber(trimmed)) { "Invalid train number: $trainNumber" }
         return "trainDetail/${Uri.encode(trimmed)}"
+    }
+
+    fun travel(trainNumber: String): String {
+        val trimmed = trainNumber.trim()
+        require(isValidTrainNumber(trimmed)) { "Invalid train number: $trainNumber" }
+        return "travel/${Uri.encode(trimmed)}"
     }
 
     fun stationBoard(stationCode: String): String {
@@ -176,6 +184,30 @@ fun TrainKraftNavHost(deepLinkTrainNumber: String? = null) {
             TrainDetailScreen(
                 trainNumber = trainNumber,
                 onBack = { navController.popBackStack() },
+                onTravel = { number ->
+                    if (TrainKraftDestinations.isValidTrainNumber(number)) {
+                        navController.navigate(TrainKraftDestinations.travel(number)) {
+                            launchSingleTop = true
+                        }
+                    }
+                },
+            )
+        }
+        // Travel mode — slide from right (mirrors the trainDetail pattern:
+        // same argument parsing/validation, back-stack close).
+        composable(
+            route = TrainKraftDestinations.TRAVEL_ROUTE,
+            arguments = listOf(navArgument("trainNumber") { type = NavType.StringType }),
+            enterTransition = { slideInFromRight },
+            exitTransition = { slideOutToLeft },
+            popEnterTransition = { slideInFromLeft },
+            popExitTransition = { slideOutToRight },
+        ) { backStackEntry ->
+            val raw = backStackEntry.arguments?.getString("trainNumber").orEmpty()
+            val trainNumber = Uri.decode(raw).trim()
+            TravelScreen(
+                trainNumber = trainNumber,
+                onClose = { navController.popBackStack() },
             )
         }
         // Detail: Station board — slide from right

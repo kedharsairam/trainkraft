@@ -100,6 +100,7 @@ fun SearchScreen(
     val trainResults by viewModel.trainResults.collectAsState()
     val dbError by viewModel.dbError.collectAsState()
     val tracked by viewModel.tracked.collectAsState()
+    val liveSummaries by viewModel.liveSummaries.collectAsState()
     val haptics = LocalHapticFeedback.current
     val focusManager = LocalFocusManager.current
     val focusRequester = remember { FocusRequester() }
@@ -264,6 +265,7 @@ fun SearchScreen(
                         AlertsStatusRow(onSettingsClick = onSettingsClick)
                         TrackedTrainsSection(
                             tracked = tracked,
+                            liveSummaries = liveSummaries,
                             onTrainClick = onTrainClick,
                             onUntrack = { viewModel.untrack(it) },
                         )
