@@ -102,4 +102,9 @@ class NtesRepository(
         cachedLoad("inst:$trainNumber", { NtesApi.trainInstance(trainNumber, it) }) {
             NtesJson.decode(it)
         }
+
+    suspend fun trainExceptions(trainNumber: String): LoadResult<TrainExcpDto> =
+        cachedLoad("exc:$trainNumber", { NtesApi.trainExceptions(trainNumber, it) }) {
+            NtesJson.decode(it)
+        }
 }

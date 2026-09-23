@@ -21,6 +21,8 @@ import com.trainkraft.app.data.ScheduleStop
 import com.trainkraft.app.data.TrackedTrainEntity
 import com.trainkraft.app.data.TrainDatabase
 import com.trainkraft.app.data.TrainEntity
+import com.trainkraft.app.data.TrainExcpDto
+import com.trainkraft.app.data.TrainInstanceDto
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -83,6 +85,15 @@ class TrainDetailViewModel(
     private val _selectedDate = MutableStateFlow<String?>(null)
     val selectedDate: StateFlow<String?> = _selectedDate.asStateFlow()
 
+    // --- Run instances + service exceptions (independent sidecars) ---
+    // Loaded alongside live status but on separate flows that silent-fail:
+    // a failed instance/exception call must NEVER block the main timeline.
+    private val _instances = MutableStateFlow<TrainInstanceDto?>(null)
+    val instances: StateFlow<TrainInstanceDto?> = _instances.asStateFlow()
+
+    private val _exceptions = MutableStateFlow<TrainExcpDto?>(null)
+    val exceptions: StateFlow<TrainExcpDto?> = _exceptions.asStateFlow()
+
     // --- Average delay (typed) ---
     private val _avgDelay = MutableStateFlow<AvgDelayDto?>(null)
     val avgDelay: StateFlow<AvgDelayDto?> = _avgDelay.asStateFlow()
@@ -111,6 +122,7 @@ class TrainDetailViewModel(
             }
         }
         loadSchedule()
+        loadSidecar()
     }
 
     fun hasNotificationPermission(): Boolean {
@@ -203,6 +215,28 @@ class TrainDetailViewModel(
 
     fun retry() = loadSchedule()
 
+    /**
+     * Recent runs (`vInstanceList`: start date, run state, position,
+     * exception message) plus service exceptions (cancellations/diversions).
+     * Independent of the live timeline: every failure mode resolves to null
+     * and the UI hides the dependent strip/banner instead of erroring.
+     */
+    fun loadSidecar() {
+        viewModelScope.launch {
+            val r = repo ?: return@launch
+            when (val res = r.trainInstance(trainNumber.trim())) {
+                is LoadResult.Live -> _instances.value = res.value
+                is LoadResult.Offline -> _instances.value = res.value
+                is LoadResult.Failed -> _instances.value = null
+            }
+            when (val res = r.trainExceptions(trainNumber.trim())) {
+                is LoadResult.Live -> _exceptions.value = res.value
+                is LoadResult.Offline -> _exceptions.value = res.value
+                is LoadResult.Failed -> _exceptions.value = null
+            }
+        }
+    }
+
     fun setSelectedDate(date: String?) {
         _selectedDate.value = date
         // Re-fetch live status with the new date
@@ -249,6 +283,8 @@ class TrainDetailViewModel(
                 _liveError.value = mapLiveError(e.message ?: "")
             } finally {
                 _isLiveLoading.value = false
+                // Best-effort sidecar retry: still silent, still never blocks.
+                if (_instances.value == null || _exceptions.value == null) loadSidecar()
             }
         }
     }
