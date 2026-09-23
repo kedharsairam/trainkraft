@@ -339,6 +339,18 @@ internal fun LiveTimeline(
     use24h: Boolean = true,
     stopAlarmsByCode: Map<String, Long> = emptyMap(),
     onToggleStopAlarm: (LiveStopDto) -> Unit = {},
+    /**
+     * DAO-persisted watch station: renders timeless-armed rows for alarms
+     * armed in a previous screen instance (epoch lives only in memory).
+     * Callers pass null under an active approach toggle (its switch owns
+     * that state).
+     */
+    persistedWatchCode: String? = null,
+    /**
+     * Station an alarm already fired for (one-shot consumed): rows matching
+     * this render unarmed even when [persistedWatchCode] names them.
+     */
+    notifiedStationCode: String? = null,
 ) {
     if (stops.isEmpty()) return
     val arrived = remember(stops) { stops.map { it.arrived } }
@@ -376,6 +388,8 @@ internal fun LiveTimeline(
                     prior = priorsByCode[stop.code.uppercase()],
                     use24h = use24h,
                     alarmTriggerAt = stopAlarmsByCode[stop.code.uppercase()],
+                    persistedWatchCode = persistedWatchCode,
+                    notifiedStationCode = notifiedStationCode,
                     onToggleAlarm = { onToggleStopAlarm(stop) },
                 )
             }
@@ -652,6 +666,8 @@ private fun FutureStopRow(
     use24h: Boolean = true,
     alarmTriggerAt: Long? = null,
     onToggleAlarm: (() -> Unit)? = null,
+    persistedWatchCode: String? = null,
+    notifiedStationCode: String? = null,
 ) {
     val pfSuffix = stop.platform.takeIf { it.isNotBlank() }?.let { " · PF$it*" } ?: ""
     // Server delay behind today's main line: departure for intermediates and
@@ -788,6 +804,8 @@ private fun FutureStopRow(
                 StopAlarmRow(
                     code = stop.code,
                     alarmTriggerAt = alarmTriggerAt,
+                    persistedWatch = persistedWatchCode,
+                    notifiedStation = notifiedStationCode,
                     onToggleAlarm = onToggleAlarm,
                 )
             }
@@ -808,8 +826,11 @@ private fun StopAlarmRow(
     code: String,
     alarmTriggerAt: Long?,
     onToggleAlarm: () -> Unit,
+    persistedWatch: String? = null,
+    notifiedStation: String? = null,
 ) {
-    val scheduled = alarmTriggerAt != null
+    val display = resolveStopAlarmDisplay(alarmTriggerAt, persistedWatch, code, notifiedStation)
+    val scheduled = display.armed
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
@@ -829,7 +850,8 @@ private fun StopAlarmRow(
         }
         if (scheduled) {
             Text(
-                text = "Alarm set · ${clockLabel(alarmTriggerAt)}",
+                text = display.triggerAt?.let { "Alarm set · ${clockLabel(it)}" }
+                    ?: "Alarm set",
                 style = tabularFigures(MaterialTheme.typography.bodySmall),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.weight(1f),
