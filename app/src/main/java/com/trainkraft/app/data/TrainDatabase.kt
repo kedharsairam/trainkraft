@@ -109,7 +109,9 @@ abstract class TrainDatabase : RoomDatabase() {
          * pre-alarm) and v2-shaped files (8 cols, with `watchStationCode` /
          * `lastApproachFor`) migrate without column-count mismatch. The
          * CREATE here carries the current 8-column shape so the later
-         * [UserDatabase] v2 open validates.
+         * [UserDatabase] open validates (v2 now, plus later versions via
+         * their own migrations — keep this CREATE in sync with the current
+         * entity DDL when alarm/trace columns evolve).
          *
          * Failure policy: the copy block is best-effort — any exception is
          * logged and swallowed so the upgrade can never brick the timetable.

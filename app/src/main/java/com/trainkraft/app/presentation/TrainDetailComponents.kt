@@ -1247,6 +1247,45 @@ internal fun GoLiveButton(
 }
 
 /**
+ * Phase D travel-mode entry card: "I'm on board" next to the Go-live story.
+ *
+ * Copy is deliberately distinct from [GoLiveButton]: Go-live = minute
+ * server checks (no GPS); on-board = phone GPS while you ride. Tonal
+ * surface, 56dp target, no animation.
+ */
+@Composable
+internal fun TravelModeEntry(onBoard: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(KraftRadius.Standard))
+            .background(MaterialTheme.colorScheme.surfaceContainerLow)
+            .padding(KraftSpacing.Spacing16),
+        verticalArrangement = Arrangement.spacedBy(KraftSpacing.Spacing8),
+    ) {
+        Text(
+            text = "On board this train?",
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.SemiBold,
+        )
+        Text(
+            text = "Go-live checks the server every minute · On-board uses your phone's GPS while you ride.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        androidx.compose.material3.OutlinedButton(
+            onClick = onBoard,
+            modifier = Modifier.heightIn(min = 56.dp),
+        ) {
+            Text(
+                text = "I'm on board",
+                style = tabularFigures(MaterialTheme.typography.labelLarge),
+            )
+        }
+    }
+}
+
+/**
  * Alarms section: destination-arrival segmented control (15/30/60 min lead)
  * + next-stop approach toggle (10-min lead) + scheduled row with Cancel.
  * Arbitrary-stop alarms are Phase E — the footnote says so literally.

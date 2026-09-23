@@ -85,6 +85,8 @@ dependencies {
     ksp("androidx.room:room-compiler:2.8.5")
     implementation("androidx.work:work-runtime-ktx:2.11.2")
     implementation("com.squareup.okhttp3:okhttp:5.5.0")
+    // Phase D travel-mode GPS: fused provider (foreground-only, 10 s cadence).
+    implementation("com.google.android.gms:play-services-location:21.3.0")
 
     // Kraft Foundation — shared design system + core utilities.
     implementation("com.kraft:kraft-ui")
