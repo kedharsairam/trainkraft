@@ -2,6 +2,28 @@
 
 All notable changes to TrainKraft are documented here.
 
+## [0.5.0] - 2026-09-24
+
+### Added
+- Answer-first live tracking detail: status headline, server-timestamped freshness badge (`Live · HH:MM` / `Cached · Xm ago`) with manual refresh, journey-progress bar, 4-day instance strip, three-zone timeline (actuals / Now card / Expected with dynamic `PF*`), collapsible non-stop disclosures, reversal dividers, per-stop km rail and coach sheets, red cancellations banner
+- Between-stations date carousel with per-day train counts, dynamic type filters, departure/duration/arrival sort, and cards with duration, day-dots, class chips, Schedule/Track actions
+- Home hub: hero search card, quick-action grid (PNR promoted from Settings), tracked-trains overview, read-only alerts-status row
+- Foreground tracking service (60s loop, 30s near-arrival boost, worker-dedup invariant) with Go-live two-tier UX and first-run onboarding sheet
+- Station/destination/per-stop alarms (exact with inexact fallback, one-shot gates) and notification-tap deep links
+- On-device GPS travel mode (foreground-only, advisory arrival, revoke-safe) with glanceable speed/distance screen
+- `liveTracking` presence flag: stopping Go-live never unfollows (bell owns rows, flag owns minute presence; cold-start reset)
+- Fog-program notices from published overlays; pack provenance caption
+
+### Fixed
+- Room asset wipe on every open (scoped destructive migration), ShimmerList infinite-measure crash (kraft-ui)
+- v3 user-data rescue moved out of the Room migration transaction (WAL-mode throw ate followed trains); drops-only migration + pre-open migrator
+- Per-stop alarm rows remember persisted watches across recreation, suppress fired one-shots
+
+### Changed
+- Two-database privacy split: `user.db` (tracked trains, cache, traces — backup-excluded) vs `trains.db` (static timetable, re-seeds from asset)
+- Worker interval corrected to the 15-minute OS floor; NTES key cache invalidates on decrypt failure
+- Product law: the app shows what is, what was, and what's published — it computes nothing about the future (no predictions, no priors display, no forecasts)
+
 ## [0.4.0] - 2026-09-23
 
 ### Added
