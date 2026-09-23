@@ -8,6 +8,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.trainkraft.app.TrainKraftApp
 import com.trainkraft.app.data.BetweenResult
+import com.trainkraft.app.data.BetweenTrainDto
 import com.trainkraft.app.data.BetweenTrainsDto
 import com.trainkraft.app.data.LoadResult
 import com.trainkraft.app.data.NtesFormats
@@ -21,6 +22,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 class BetweenViewModel(
     application: Application,
@@ -46,13 +49,45 @@ class BetweenViewModel(
     private val _toStation = MutableStateFlow<StationEntity?>(null)
     val toStation: StateFlow<StationEntity?> = _toStation.asStateFlow()
 
-    // Results
+    // Results (BetweenResult kept for compat; allRows is the enriched source
+    // the redesigned screen renders — BetweenResult carries no dayOfRun /
+    // classes / typeDesc, so the NTES metadata rides along in BetweenUiRow).
     private val _results = MutableStateFlow<List<BetweenResult>>(emptyList())
     val results: StateFlow<List<BetweenResult>> = _results.asStateFlow()
+    private val _allRows = MutableStateFlow<List<BetweenUiRow>>(emptyList())
+    val allRows: StateFlow<List<BetweenUiRow>> = _allRows.asStateFlow()
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error.asStateFlow()
+
+    /** Local fetch time of the currently shown payload (honesty badge). */
+    private val _fetchEpochMs = MutableStateFlow<Long?>(null)
+    val fetchEpochMs: StateFlow<Long?> = _fetchEpochMs.asStateFlow()
+
+    /** Date-carousel selection; defaults to today, reset on each new search. */
+    private val _selectedDate = MutableStateFlow(LocalDate.now())
+    val selectedDate: StateFlow<LocalDate> = _selectedDate.asStateFlow()
+
+    /** Train-type filter; null = All. Reset on each new search. */
+    private val _typeFilter = MutableStateFlow<String?>(null)
+    val typeFilter: StateFlow<String?> = _typeFilter.asStateFlow()
+
+    /** Client-side sort; kept across searches. */
+    private val _sort = MutableStateFlow(BetweenSort.DEPARTURE)
+    val sort: StateFlow<BetweenSort> = _sort.asStateFlow()
+
+    fun selectDate(date: LocalDate) {
+        _selectedDate.value = date
+    }
+
+    fun selectTypeFilter(filter: String?) {
+        _typeFilter.value = filter
+    }
+
+    fun selectSort(sort: BetweenSort) {
+        _sort.value = sort
+    }
 
     /** Which source produced [results] — drives the honesty badge. */
     private val _source = MutableStateFlow(DataSource.OFFLINE)
@@ -70,6 +105,7 @@ class BetweenViewModel(
         _fromQuery.value = value
         _fromStation.value = null
         _results.value = emptyList()
+        _allRows.value = emptyList()
         fromSearchJob?.cancel()
         if (value.isBlank()) {
             _fromResults.value = emptyList()
@@ -85,6 +121,7 @@ class BetweenViewModel(
         _toQuery.value = value
         _toStation.value = null
         _results.value = emptyList()
+        _allRows.value = emptyList()
         toSearchJob?.cancel()
         if (value.isBlank()) {
             _toResults.value = emptyList()
@@ -127,6 +164,11 @@ class BetweenViewModel(
         if (_fromStation.value != null && _toStation.value != null) search()
     }
 
+    /** Manual reload for the top-bar refresh affordance. */
+    fun refresh() {
+        retry()
+    }
+
     private fun search() {
         val from = _fromStation.value ?: return
         val to = _toStation.value ?: return
@@ -141,14 +183,19 @@ class BetweenViewModel(
                 var liveFailed = false
 
                 // Live-first: strict NTES rows, cache fallback by repository.
+                // enriched carries the NTES metadata (dayOfRun / classes /
+                // typeDesc) that BetweenResult cannot hold.
+                var enriched: List<BetweenUiRow>? = null
                 when (val live = repo?.trainsBetween(from.code, to.code)
                     ?: LoadResult.Failed("offline build")) {
                     is LoadResult.Live -> {
-                        rows = mapLive(live.value, from, to)
+                        enriched = mapLive(live.value, from, to)
+                        rows = enriched.toBetweenResults()
                         ds = DataSource.LIVE
                     }
                     is LoadResult.Offline -> {
-                        rows = mapLive(live.value, from, to)
+                        enriched = mapLive(live.value, from, to)
+                        rows = enriched.toBetweenResults()
                         ds = DataSource.CACHED
                         age = live.ageMs
                     }
@@ -157,12 +204,18 @@ class BetweenViewModel(
 
                 if (rows.isNullOrEmpty()) {
                     // Live unavailable or empty → offline weekday timetable.
-                    val weekday = LocalDate.now().dayOfWeek.value - 1
+                    val today = LocalDate.now()
+                    val weekday = today.dayOfWeek.value - 1
                     val gtfs = dao.getTrainsBetween(from.code, to.code, weekday)
                     if (gtfs.isNotEmpty()) {
                         rows = gtfs
                         ds = DataSource.OFFLINE
                         age = null
+                        // GTFS rows were already weekday-filtered by the DAO
+                        // query, so tag each with today's abbreviation — keeps
+                        // the date carousel counts honest for offline data.
+                        val abbrev = today.format(WEEKDAY_ABBREV)
+                        enriched = gtfs.map { it.toUiRow(abbrev) }
                     } else if (rows == null && liveFailed) {
                         val msg =
                             "Couldn't reach live data, and the offline timetable " +
@@ -175,8 +228,15 @@ class BetweenViewModel(
                 }
 
                 _results.value = rows.orEmpty()
+                _allRows.value = enriched.orEmpty()
                 _source.value = ds
                 _sourceAgeMs.value = age
+                // Actual payload-arrival time for the honesty badge.
+                _fetchEpochMs.value = System.currentTimeMillis()
+                // New station pair → restart the carousel on today, clear the
+                // type filter; the sort preference is kept.
+                _selectedDate.value = LocalDate.now()
+                _typeFilter.value = null
                 _uiState.value = BetweenUiState.Results(_results.value)
             } catch (e: Exception) {
                 if (BuildConfig.DEBUG) {
@@ -192,39 +252,21 @@ class BetweenViewModel(
     }
 
     /**
-     * Live NTES rows → presentation model.
+     * Live NTES rows → enriched presentation rows.
      *
      * NTES wraps arrival at midnight, so travel time gives the exact day
-     * offset even for >24h legs (fallback: arr < dep ⇒ next day). Board and
-     * alight codes can differ from the query — NTES resolves station pairs
-     * regionally (NDLS→MMCT also matches NZM→BDTS rows). Dep day is assumed
-     * today (the common case for corridor searches).
+     * offset even for >24h legs (fallback: arr <= dep ⇒ next day — see
+     * [inferArrivalDayOffset]). Board and alight codes can differ from the
+     * query — NTES resolves station pairs regionally (NDLS→MMCT also matches
+     * NZM→BDTS rows). Dep day is assumed today (the common case for corridor
+     * searches).
      */
     private fun mapLive(
         dto: BetweenTrainsDto,
         from: StationEntity,
         to: StationEntity,
-    ): List<BetweenResult> = dto.trains.mapNotNull { t ->
-        val dep = t.depMinutes() ?: return@mapNotNull null
-        val arr = t.arrMinutes() ?: return@mapNotNull null
-        val travelMin = NtesFormats.hhmmToMinutes(t.travelTime)
-        val arrDay = when {
-            travelMin != null -> (dep + travelMin) / 1440
-            arr < dep -> 1
-            else -> 0
-        }
-        BetweenResult(
-            trainNumber = t.trainNumber,
-            trainName = t.trainName,
-            fromCode = t.boardCode.ifBlank { from.code },
-            fromName = t.boardName.ifBlank { from.name },
-            depMin = dep,
-            depDayOffset = 0,
-            toCode = t.alightCode.ifBlank { to.code },
-            toName = t.alightName.ifBlank { to.name },
-            arrMin = arr,
-            arrDayOffset = arrDay,
-        )
+    ): List<BetweenUiRow> = dto.trains.mapNotNull { t ->
+        mapLiveRow(t, from.code, from.name, to.code, to.name)
     }.sortedWith(compareBy({ it.depMin }, { it.trainNumber }))
 
     class Factory(
@@ -235,4 +277,77 @@ class BetweenViewModel(
             return BetweenViewModel(application) as T
         }
     }
+
+    companion object {
+        private val WEEKDAY_ABBREV: DateTimeFormatter =
+            DateTimeFormatter.ofPattern("EEE", Locale.ENGLISH)
+    }
+}
+
+/**
+ * One NTES between-trains DTO row → enriched UI row. Null when the leg times
+ * don't parse. Top-level (same file, outside the class) so it stays unit-
+ * testable without Android.
+ */
+fun mapLiveRow(
+    t: BetweenTrainDto,
+    fromCode: String,
+    fromName: String,
+    toCode: String,
+    toName: String,
+): BetweenUiRow? {
+    val dep = t.depMinutes() ?: return null
+    val arr = t.arrMinutes() ?: return null
+    // durationMinutes (presentation) also covers >24h legs like "26:25",
+    // which NtesFormats.hhmmToMinutes rejects (hh < 24) — without it those
+    // legs would land on the wrong day offset.
+    val travelMin = durationMinutes(t.travelTime) ?: NtesFormats.hhmmToMinutes(t.travelTime)
+    val arrDay = inferArrivalDayOffset(dep, arr, travelMin)
+    return BetweenUiRow(
+        trainNumber = t.trainNumber,
+        trainName = t.trainName,
+        fromCode = t.boardCode.ifBlank { fromCode },
+        fromName = t.boardName.ifBlank { fromName },
+        depMin = dep,
+        depDayOffset = 0,
+        toCode = t.alightCode.ifBlank { toCode },
+        toName = t.alightName.ifBlank { toName },
+        arrMin = arr,
+        arrDayOffset = arrDay,
+        dayOfRun = t.dayOfRun,
+        classes = t.classes,
+        typeDesc = t.typeDesc,
+        travelRaw = t.travelTime,
+    )
+}
+
+/** Offline GTFS row → UI row, tagged with the queried weekday's abbreviation. */
+fun BetweenResult.toUiRow(dayOfRunAbbrev: String): BetweenUiRow = BetweenUiRow(
+    trainNumber = trainNumber,
+    trainName = trainName,
+    fromCode = fromCode,
+    fromName = fromName,
+    depMin = depMin,
+    depDayOffset = depDayOffset,
+    toCode = toCode,
+    toName = toName,
+    arrMin = arrMin,
+    arrDayOffset = arrDayOffset,
+    dayOfRun = dayOfRunAbbrev,
+)
+
+/** UI rows back to the compat [BetweenResult] list. */
+fun List<BetweenUiRow>.toBetweenResults(): List<BetweenResult> = map { row ->
+    BetweenResult(
+        trainNumber = row.trainNumber,
+        trainName = row.trainName,
+        fromCode = row.fromCode,
+        fromName = row.fromName,
+        depMin = row.depMin,
+        depDayOffset = row.depDayOffset,
+        toCode = row.toCode,
+        toName = row.toName,
+        arrMin = row.arrMin,
+        arrDayOffset = row.arrDayOffset,
+    )
 }

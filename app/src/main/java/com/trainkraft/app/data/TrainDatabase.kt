@@ -80,7 +80,13 @@ abstract class TrainDatabase : RoomDatabase() {
                 )
                     .createFromAsset(ASSET_NAME)
                     .addMigrations(MIGRATION_2_3)
-                    .fallbackToDestructiveMigration(dropAllTables = true)
+                    // CRITICAL: never use the *unconditional* fallback together
+                    // with createFromAsset — Room then deletes + re-copies the
+                    // asset on EVERY open (even same-version), silently wiping
+                    // tracked_trains/cached_responses on each cold start.
+                    // Scoped to legacy v1 only: v2->v3 runs MIGRATION_2_3,
+                    // v3 opens consult neither.
+                    .fallbackToDestructiveMigrationFrom(1)
                     .build()
                 INSTANCE = instance
                 instance

@@ -125,6 +125,11 @@ fun TrainKraftNavHost() {
                         launchSingleTop = true
                     }
                 },
+                onPnrClick = {
+                    navController.navigate(TrainKraftDestinations.PNR) {
+                        launchSingleTop = true
+                    }
+                },
                 onSettingsClick = {
                     navController.navigate(TrainKraftDestinations.SETTINGS) {
                         launchSingleTop = true

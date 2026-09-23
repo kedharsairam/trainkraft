@@ -21,10 +21,12 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Search
@@ -32,7 +34,6 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Train
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.LocationOn
-import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.SearchOff
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -43,12 +44,18 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -61,7 +68,11 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
+import kotlinx.coroutines.launch
 import com.kraft.ui.components.EmptyState
 import com.kraft.ui.components.ShimmerList
 import com.kraft.ui.motion.KraftSprings
@@ -79,6 +90,7 @@ fun SearchScreen(
     onTrainClick: (String) -> Unit,
     onStationClick: (String) -> Unit,
     onBetweenClick: () -> Unit = {},
+    onPnrClick: () -> Unit = {},
     onSettingsClick: () -> Unit = {},
     viewModel: SearchViewModel = viewModel(),
 ) {
@@ -87,8 +99,25 @@ fun SearchScreen(
     val stationResults by viewModel.stationResults.collectAsState()
     val trainResults by viewModel.trainResults.collectAsState()
     val dbError by viewModel.dbError.collectAsState()
+    val tracked by viewModel.tracked.collectAsState()
     val haptics = LocalHapticFeedback.current
     val focusManager = LocalFocusManager.current
+    val focusRequester = remember { FocusRequester() }
+    val homeScroll = rememberScrollState()
+    val scope = rememberCoroutineScope()
+    var stationMode by remember { mutableStateOf(false) }
+
+    // Bells toggle on TrainDetail: re-read tracked_trains every time home
+    // regains the foreground. One-shot suspend read (no list-all Flow on the
+    // DAO) — cheapest reliable option.
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) viewModel.refreshTracked()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     Scaffold(
         contentWindowInsets = WindowInsets.safeDrawing,
@@ -132,34 +161,68 @@ fun SearchScreen(
                 }
             }
             Spacer(modifier = Modifier.height(KraftSpacing.Spacing16))
-            // Search pill — frosted surface, no underline, 44dp rhythm
-            TextField(
-                value = query,
-                onValueChange = viewModel::onQueryChange,
-                modifier = Modifier.fillMaxWidth(),
-                placeholder = { Text("Try 12951, Rajdhani, or NDLS") },
-                leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
-                trailingIcon = {
-                    if (query.isNotEmpty()) {
-                        IconButton(onClick = {
-                            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            viewModel.clearQuery()
-                        }) {
-                            Icon(Icons.Filled.Clear, contentDescription = "Clear search")
+            // Hero search card — inset tonal surface, generous padding. The
+            // primary job stays dominant; behavior (as-you-type, clear,
+            // keyboard actions, haptics) is unchanged.
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(KraftRadius.Hero))
+                    .background(MaterialTheme.colorScheme.surfaceContainerLow)
+                    .padding(KraftSpacing.Spacing16),
+            ) {
+                // Search pill — frosted surface, no underline, 44dp rhythm
+                TextField(
+                    value = query,
+                    onValueChange = viewModel::onQueryChange,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .focusRequester(focusRequester),
+                    placeholder = {
+                        Text(
+                            if (stationMode) "Station code (e.g. NDLS)"
+                            else "Try 12951, Rajdhani, or NDLS",
+                        )
+                    },
+                    leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
+                    trailingIcon = {
+                        if (query.isNotEmpty()) {
+                            IconButton(onClick = {
+                                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                viewModel.clearQuery()
+                                stationMode = false
+                            }) {
+                                Icon(Icons.Filled.Clear, contentDescription = "Clear search")
+                            }
                         }
-                    }
-                },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                keyboardActions = KeyboardActions(onSearch = { focusManager.clearFocus() }),
-                shape = RoundedCornerShape(KraftRadius.Pill),
-                colors = TextFieldDefaults.colors(
-                    focusedIndicatorColor = Color.Transparent,
-                    unfocusedIndicatorColor = Color.Transparent,
-                    focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                ),
-            )
+                    },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                    keyboardActions = KeyboardActions(onSearch = { focusManager.clearFocus() }),
+                    shape = RoundedCornerShape(KraftRadius.Pill),
+                    colors = TextFieldDefaults.colors(
+                        focusedIndicatorColor = Color.Transparent,
+                        unfocusedIndicatorColor = Color.Transparent,
+                        focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    ),
+                )
+                if (stationMode) {
+                    Spacer(modifier = Modifier.height(KraftSpacing.Spacing8))
+                    Text(
+                        text = "Search a station code (e.g. NDLS)",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Spacer(modifier = Modifier.height(KraftSpacing.Spacing8))
+                // Honest provenance: search data is the local GTFS snapshot.
+                Text(
+                    text = "Offline timetable · live status when online",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
             Spacer(modifier = Modifier.height(KraftSpacing.Spacing8))
 
             if (dbError != null) {
@@ -179,11 +242,33 @@ fun SearchScreen(
                     )
                 }
                 query.isBlank() -> {
-                    EmptyState(
-                        title = "Find a train or station",
-                        message = "Try a number like 12951, a name like Rajdhani, or a code like NDLS.",
-                        icon = Icons.Outlined.Search,
-                    )
+                    // Home IA: quick actions, alerts status, tracked overview.
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .verticalScroll(homeScroll),
+                        verticalArrangement = Arrangement.spacedBy(KraftSpacing.Spacing8),
+                    ) {
+                        QuickActionGrid(
+                            onBetweenClick = onBetweenClick,
+                            onPnrClick = onPnrClick,
+                            onStationBoardClick = {
+                                viewModel.clearQuery()
+                                stationMode = true
+                                focusRequester.requestFocus()
+                            },
+                            onTrackedClick = {
+                                scope.launch { homeScroll.animateScrollTo(homeScroll.maxValue) }
+                            },
+                        )
+                        AlertsStatusRow(onSettingsClick = onSettingsClick)
+                        TrackedTrainsSection(
+                            tracked = tracked,
+                            onTrainClick = onTrainClick,
+                            onUntrack = { viewModel.untrack(it) },
+                        )
+                        Spacer(modifier = Modifier.height(KraftSpacing.Spacing8))
+                    }
                 }
                 trainResults.isEmpty() && stationResults.isEmpty() -> {
                     EmptyState(
