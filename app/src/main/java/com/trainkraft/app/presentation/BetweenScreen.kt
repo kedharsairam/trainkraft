@@ -4,11 +4,14 @@ import android.app.Application
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -22,11 +25,13 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.SwapVert
 import androidx.compose.material.icons.filled.Train
 import androidx.compose.material.icons.outlined.Train
@@ -37,6 +42,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
@@ -55,7 +61,9 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.kraft.ui.components.EmptyState
 import com.kraft.ui.components.ErrorState
@@ -68,9 +76,16 @@ import com.kraft.ui.tokens.KraftConstants
 import com.kraft.ui.tokens.KraftIconSize
 import com.kraft.ui.tokens.KraftRadius
 import com.kraft.ui.tokens.KraftSpacing
-import com.trainkraft.app.data.BetweenResult
 import com.trainkraft.app.data.GtfsTime
 import com.trainkraft.app.data.SettingsStore
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import java.util.Locale
+
+private val dayAbbrevFormat = DateTimeFormatter.ofPattern("EEE", Locale.ENGLISH)
+private val dayNumberFormat = DateTimeFormatter.ofPattern("d", Locale.ENGLISH)
+private val headerDateFormat = DateTimeFormatter.ofPattern("EEE, d MMM", Locale.ENGLISH)
+private val emptyDateFormat = DateTimeFormatter.ofPattern("EEE d", Locale.ENGLISH)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -91,11 +106,15 @@ fun BetweenScreen(
     val toResults by viewModel.toResults.collectAsState()
     val fromStation by viewModel.fromStation.collectAsState()
     val toStation by viewModel.toStation.collectAsState()
-    val results by viewModel.results.collectAsState()
+    val allRows by viewModel.allRows.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val error by viewModel.error.collectAsState()
     val source by viewModel.source.collectAsState()
     val sourceAgeMs by viewModel.sourceAgeMs.collectAsState()
+    val fetchEpochMs by viewModel.fetchEpochMs.collectAsState()
+    val selectedDate by viewModel.selectedDate.collectAsState()
+    val typeFilter by viewModel.typeFilter.collectAsState()
+    val sort by viewModel.sort.collectAsState()
 
     val use24h by remember(appContext) {
         SettingsStore.use24hFlow(appContext)
@@ -104,16 +123,37 @@ fun BetweenScreen(
     val haptics = LocalHapticFeedback.current
     val focusManager = LocalFocusManager.current
 
+    val today = remember { LocalDate.now() }
+    val week = remember(today) { betweenWeekDates(today) }
+    val dayOfRuns = remember(allRows) { allRows.map { it.dayOfRun } }
+    val counts = remember(dayOfRuns, week) { countsForDates(dayOfRuns, week) }
+    val typeOptions = remember(allRows) { distinctTypeFilters(allRows) }
+    val visible = remember(allRows, selectedDate, typeFilter, sort) {
+        applyBetweenView(allRows, selectedDate, typeFilter, sort)
+    }
+    val canReload = fromStation != null && toStation != null
+
     Scaffold(
         topBar = {
             KraftTopBar(
-                title = "Between Stations",
+                title = "Trains between",
                 navigationIcon = {
                     IconButton(onClick = {
                         haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                         onBack()
                     }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                },
+                actions = {
+                    IconButton(
+                        onClick = {
+                            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            viewModel.refresh()
+                        },
+                        enabled = canReload && !isLoading,
+                    ) {
+                        Icon(Icons.Filled.Refresh, contentDescription = "Refresh")
                     }
                 },
             )
@@ -199,7 +239,7 @@ fun BetweenScreen(
                 }
             }
 
-            if (!isLoading && error == null && results.isEmpty() &&
+            if (!isLoading && error == null && allRows.isEmpty() &&
                 fromStation != null && toStation != null
             ) {
                 item(key = "empty") {
@@ -211,47 +251,475 @@ fun BetweenScreen(
                 }
             }
 
-            if (results.isNotEmpty()) {
+            if (allRows.isNotEmpty()) {
+                item(key = "date-carousel") {
+                    DateCarousel(
+                        week = week,
+                        counts = counts,
+                        selectedDate = selectedDate,
+                        onSelect = { date ->
+                            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            viewModel.selectDate(date)
+                        },
+                    )
+                }
+
                 item(key = "results-header") {
-                    Column(
-                        modifier = Modifier.padding(vertical = KraftSpacing.Spacing8),
-                    ) {
-                        Text(
-                            text = "${results.size} train${if (results.size != 1) "s" else ""}",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold,
+                    ResultsHeader(
+                        date = selectedDate,
+                        count = visible.size,
+                        source = source,
+                        sourceAgeMs = sourceAgeMs,
+                        fetchEpochMs = fetchEpochMs,
+                    )
+                }
+
+                item(key = "toolbar") {
+                    FilterSortToolbar(
+                        typeOptions = typeOptions,
+                        typeFilter = typeFilter,
+                        sort = sort,
+                        onTypeFilter = { filter ->
+                            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            viewModel.selectTypeFilter(filter)
+                        },
+                        onSort = { next ->
+                            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            viewModel.selectSort(next)
+                        },
+                    )
+                }
+
+                if (visible.isEmpty()) {
+                    item(key = "empty-filter") {
+                        EmptyState(
+                            title = "No trains on ${selectedDate.format(emptyDateFormat)}",
+                            message = "No trains on ${selectedDate.format(emptyDateFormat)} — try another day.",
+                            icon = Icons.Outlined.Train,
                         )
-                        Text(
-                            text = "${fromStation?.code} → ${toStation?.code}",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        // Source honesty badge.
-                        Text(
-                            text = when (source) {
-                                DataSource.LIVE -> "Live · NTES now"
-                                DataSource.CACHED -> sourceAgeMs?.let {
-                                    "Cached NTES · updated ${formatAge(it)}"
-                                } ?: "Cached NTES response"
-                                DataSource.OFFLINE -> "Offline schedule · GTFS snapshot Aug 2026"
+                    }
+                } else {
+                    items(visible, key = { "${it.trainNumber}-${it.fromCode}-${it.toCode}" }) { row ->
+                        BetweenTrainCard(
+                            row = row,
+                            selectedDate = selectedDate,
+                            use24h = use24h,
+                            onTrainClick = {
+                                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                focusManager.clearFocus()
+                                onTrainClick(row.trainNumber)
                             },
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                 }
             }
+        }
+    }
+}
 
-            items(results, key = { "${it.trainNumber}-${it.fromCode}-${it.toCode}" }) { result ->
-                BetweenCard(
-                    result = result,
-                    use24h = use24h,
-                    onClick = {
-                        haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                        focusManager.clearFocus()
-                        onTrainClick(result.trainNumber)
-                    },
+/** 7-day carousel, today first; each chip carries its running-train count. */
+@Composable
+private fun DateCarousel(
+    week: List<LocalDate>,
+    counts: List<Int>,
+    selectedDate: LocalDate,
+    onSelect: (LocalDate) -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(KraftSpacing.Spacing8),
+    ) {
+        week.forEachIndexed { index, date ->
+            val count = counts.getOrElse(index) { 0 }
+            val selected = date == selectedDate
+            val weekday = remember(date) { date.format(dayAbbrevFormat) }
+            val dayNum = remember(date) { date.format(dayNumberFormat) }
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(KraftRadius.Standard))
+                    .background(
+                        if (selected) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.surfaceContainerLow,
+                    )
+                    .clickable(
+                        role = Role.Button,
+                        onClickLabel = "$weekday $dayNum, $count trains",
+                        onClick = { onSelect(date) },
+                    )
+                    .padding(
+                        horizontal = KraftSpacing.Spacing12,
+                        vertical = KraftSpacing.Spacing8,
+                    )
+                    .heightIn(min = KraftSpacing.TouchTarget),
+            ) {
+                Text(
+                    text = weekday,
+                    style = tabularFigures(MaterialTheme.typography.labelSmall),
+                    color = if (selected) MaterialTheme.colorScheme.onPrimary
+                    else MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+                Text(
+                    text = dayNum,
+                    style = tabularFigures(MaterialTheme.typography.titleMedium),
+                    fontWeight = FontWeight.Bold,
+                    color = if (selected) MaterialTheme.colorScheme.onPrimary
+                    else MaterialTheme.colorScheme.onSurface,
+                )
+                Text(
+                    text = "$count",
+                    style = tabularFigures(MaterialTheme.typography.labelSmall),
+                    color = (if (selected) MaterialTheme.colorScheme.onPrimary
+                    else MaterialTheme.colorScheme.onSurfaceVariant)
+                        .copy(alpha = 0.8f),
+                )
+            }
+        }
+    }
+}
+
+/** "Wed, 23 Sep — 2 Trains" plus the honesty badge. */
+@Composable
+private fun ResultsHeader(
+    date: LocalDate,
+    count: Int,
+    source: DataSource,
+    sourceAgeMs: Long?,
+    fetchEpochMs: Long?,
+) {
+    val dateLabel = remember(date) { date.format(headerDateFormat) }
+    Column(
+        modifier = Modifier.padding(vertical = KraftSpacing.Spacing8),
+        verticalArrangement = Arrangement.spacedBy(KraftSpacing.Spacing4),
+    ) {
+        Text(
+            text = "$dateLabel — $count Train${if (count != 1) "s" else ""}",
+            style = tabularFigures(MaterialTheme.typography.titleMedium),
+            fontWeight = FontWeight.SemiBold,
+        )
+        when (source) {
+            DataSource.LIVE -> {
+                fetchEpochMs?.let {
+                    FreshnessBadge(FreshnessState.Live(clockLabel(it)))
+                }
+            }
+            DataSource.CACHED -> {
+                FreshnessBadge(
+                    FreshnessState.Cached(
+                        sourceAgeMs?.let { cachedAgeLabel(it) } ?: "unknown age",
+                    ),
+                )
+            }
+            DataSource.OFFLINE -> {
+                Text(
+                    text = "Offline schedule · GTFS snapshot Aug 2026",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
+}
+
+/** Filter chips (All + present train types) and the Departure/Duration/Arrival sort. */
+@Composable
+private fun FilterSortToolbar(
+    typeOptions: List<String>,
+    typeFilter: String?,
+    sort: BetweenSort,
+    onTypeFilter: (String?) -> Unit,
+    onSort: (BetweenSort) -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(KraftSpacing.Spacing4)) {
+        Text(
+            text = "Filter",
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(KraftSpacing.Spacing8),
+        ) {
+            ToolbarChip(
+                label = BETWEEN_ALL_FILTER,
+                selected = typeFilter == null,
+                onClick = { onTypeFilter(null) },
+            )
+            typeOptions.forEach { option ->
+                ToolbarChip(
+                    label = option,
+                    selected = typeFilter == option,
+                    onClick = { onTypeFilter(option) },
+                )
+            }
+        }
+        Spacer(Modifier.padding(top = KraftSpacing.Spacing4))
+        Text(
+            text = "Sort",
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(KraftSpacing.Spacing8)) {
+            ToolbarChip(
+                label = "Departure",
+                selected = sort == BetweenSort.DEPARTURE,
+                onClick = { onSort(BetweenSort.DEPARTURE) },
+            )
+            ToolbarChip(
+                label = "Duration",
+                selected = sort == BetweenSort.DURATION,
+                onClick = { onSort(BetweenSort.DURATION) },
+            )
+            ToolbarChip(
+                label = "Arrival",
+                selected = sort == BetweenSort.ARRIVAL,
+                onClick = { onSort(BetweenSort.ARRIVAL) },
+            )
+        }
+    }
+}
+
+@Composable
+private fun ToolbarChip(
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    Text(
+        text = label,
+        style = MaterialTheme.typography.labelMedium,
+        fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+        color = if (selected) MaterialTheme.colorScheme.onPrimary
+        else MaterialTheme.colorScheme.onSurfaceVariant,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+        modifier = Modifier
+            .clip(RoundedCornerShape(KraftRadius.Pill))
+            .background(
+                if (selected) MaterialTheme.colorScheme.primary
+                else MaterialTheme.colorScheme.surfaceContainerHigh,
+            )
+            .clickable(role = Role.Button, onClickLabel = label, onClick = onClick)
+            .padding(
+                horizontal = KraftSpacing.Spacing12,
+                vertical = KraftSpacing.Spacing8,
+            ),
+    )
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun BetweenTrainCard(
+    row: BetweenUiRow,
+    selectedDate: LocalDate,
+    use24h: Boolean = true,
+    onTrainClick: () -> Unit,
+) {
+    val durationMin =
+        legDurationMinutes(row.depMin, row.depDayOffset, row.arrMin, row.arrDayOffset)
+    val plusLabel = arrivalPlusLabel(row.arrDayOffset)
+    val weekMask = remember(row.dayOfRun) { runningWeekMask(row.dayOfRun) }
+    val classes = remember(row.classes) { splitClasses(row.classes) }
+
+    val reduceMotion = rememberReduceMotion()
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (pressed) 0.98f else 1f,
+        animationSpec = KraftSprings.press(reduceMotion),
+        label = "betweenPress",
+    )
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            }
+            .clip(RoundedCornerShape(KraftRadius.Standard))
+            .background(MaterialTheme.colorScheme.surfaceContainerLow)
+            .clickable(
+                interactionSource = interaction,
+                indication = null,
+                role = Role.Button,
+                onClickLabel = "Open train ${row.trainNumber} details",
+                onClick = onTrainClick,
+            )
+            .padding(
+                horizontal = KraftSpacing.Spacing16,
+                vertical = KraftSpacing.Spacing12,
+            ),
+        verticalArrangement = Arrangement.spacedBy(KraftSpacing.Spacing8),
+    ) {
+        // Line 1: number + name + type chip.
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(KraftSpacing.Spacing8),
+        ) {
+            Text(
+                text = row.trainNumber,
+                style = tabularFigures(MaterialTheme.typography.titleMedium),
+                fontWeight = FontWeight.Bold,
+                fontFamily = FontFamily.Monospace,
+                maxLines = 1,
+            )
+            Text(
+                text = row.trainName,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+            if (row.typeDesc.isNotBlank()) {
+                TypeBadge(text = row.typeDesc)
+            }
+        }
+
+        // Line 2 (hero): dep — duration — arr.
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = GtfsTime.format(row.depMin, 0, use24h),
+                    style = tabularFigures(MaterialTheme.typography.titleLarge),
+                    fontWeight = FontWeight.SemiBold,
+                    fontFamily = FontFamily.Monospace,
+                    color = KraftColors.AuroraGreen,
+                    maxLines = 1,
+                )
+                Text(
+                    text = row.fromCode,
+                    style = MaterialTheme.typography.labelSmall,
+                    fontFamily = FontFamily.Monospace,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                )
+            }
+            Text(
+                text = formatDuration(durationMin),
+                style = tabularFigures(MaterialTheme.typography.labelMedium),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+                maxLines = 1,
+            )
+            Column(
+                modifier = Modifier.weight(1f),
+                horizontalAlignment = Alignment.End,
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(KraftSpacing.Spacing4),
+                ) {
+                    Text(
+                        text = GtfsTime.format(row.arrMin, 0, use24h),
+                        style = tabularFigures(MaterialTheme.typography.titleLarge),
+                        fontWeight = FontWeight.SemiBold,
+                        fontFamily = FontFamily.Monospace,
+                        maxLines = 1,
+                    )
+                    if (plusLabel != null) {
+                        Surface(
+                            shape = RoundedCornerShape(KraftRadius.Pill),
+                            color = MaterialTheme.colorScheme.secondaryContainer,
+                        ) {
+                            Text(
+                                text = plusLabel,
+                                style = tabularFigures(MaterialTheme.typography.labelSmall),
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                modifier = Modifier.padding(
+                                    horizontal = KraftSpacing.Spacing6,
+                                    vertical = 2.dp,
+                                ),
+                            )
+                        }
+                    }
+                }
+                Text(
+                    text = row.toCode,
+                    style = MaterialTheme.typography.labelSmall,
+                    fontFamily = FontFamily.Monospace,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                )
+            }
+        }
+
+        // Line 3: running-days row (M T W T F S S).
+        Row(horizontalArrangement = Arrangement.spacedBy(KraftSpacing.Spacing4)) {
+            val selectedWeekday = selectedDate.dayOfWeek
+            betweenWeekOrder.forEachIndexed { index, day ->
+                val runs = weekMask.getOrElse(index) { false }
+                val isSelectedDay = day == selectedWeekday
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .size(28.dp)
+                        .clip(CircleShape)
+                        .background(
+                            if (runs) MaterialTheme.colorScheme.primary.copy(
+                                alpha = KraftConstants.ContainerAlpha,
+                            )
+                            else Color.Transparent,
+                        ),
+                ) {
+                    Text(
+                        text = betweenWeekLetters[index],
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = if (runs || isSelectedDay) FontWeight.Bold
+                        else FontWeight.Normal,
+                        color = if (runs) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                    )
+                }
+            }
+        }
+
+        // Line 4: class-of-service chips (raw NTES tokens).
+        if (classes.isNotEmpty()) {
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(KraftSpacing.Spacing4),
+                verticalArrangement = Arrangement.spacedBy(KraftSpacing.Spacing4),
+            ) {
+                classes.forEach { cls ->
+                    Surface(
+                        shape = RoundedCornerShape(KraftRadius.Pill),
+                        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    ) {
+                        Text(
+                            text = cls,
+                            style = tabularFigures(MaterialTheme.typography.labelSmall),
+                            fontFamily = FontFamily.Monospace,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(
+                                horizontal = KraftSpacing.Spacing8,
+                                vertical = KraftSpacing.Spacing4,
+                            ),
+                        )
+                    }
+                }
+            }
+        }
+
+        // Actions: Schedule + Track (both open train detail today — the
+        // NavHost exposes a single onTrainClick(number) callback).
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.End,
+        ) {
+            TextButton(onClick = onTrainClick) {
+                Text("Schedule")
+            }
+            TextButton(onClick = onTrainClick) {
+                Text("Track")
             }
         }
     }
@@ -372,108 +840,6 @@ private fun StationPicker(
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-        }
-    }
-}
-
-@Composable
-private fun BetweenCard(
-    result: BetweenResult,
-    use24h: Boolean = true,
-    onClick: () -> Unit,
-) {
-    val totalDepMin = result.depMin + result.depDayOffset * 1440
-    val totalArrMin = result.arrMin + result.arrDayOffset * 1440
-    val durationMin = totalArrMin - totalDepMin
-    val durH = durationMin / 60
-    val durM = durationMin % 60
-
-    val reduceMotion = rememberReduceMotion()
-    val interaction = remember { MutableInteractionSource() }
-    val pressed by interaction.collectIsPressedAsState()
-    val scale by animateFloatAsState(
-        targetValue = if (pressed) 0.98f else 1f,
-        animationSpec = KraftSprings.press(reduceMotion),
-        label = "betweenPress",
-    )
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .graphicsLayer {
-                scaleX = scale
-                scaleY = scale
-            }
-            .clip(RoundedCornerShape(KraftRadius.Standard))
-            .background(MaterialTheme.colorScheme.surfaceContainerLow)
-            .clickable(
-                interactionSource = interaction,
-                indication = null,
-                role = Role.Button,
-                onClickLabel = "Open train details",
-                onClick = onClick,
-            )
-            .padding(
-                horizontal = KraftSpacing.Spacing16,
-                vertical = KraftSpacing.Spacing12,
-            )
-            .heightIn(min = KraftSpacing.TouchTarget),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(
-            contentAlignment = Alignment.Center,
-            modifier = Modifier
-                .size(KraftIconSize.XLarge)
-                .clip(CircleShape)
-                .background(
-                    MaterialTheme.colorScheme.primary.copy(
-                        alpha = KraftConstants.ContainerAlpha,
-                    ),
-                ),
-        ) {
-            Icon(
-                Icons.Filled.Train,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(KraftIconSize.Medium),
-            )
-        }
-        Spacer(Modifier.width(KraftSpacing.Spacing12))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = result.trainNumber,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                fontFamily = FontFamily.Monospace,
-                maxLines = 1,
-            )
-            Text(
-                text = result.trainName,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-        Spacer(Modifier.width(KraftSpacing.Spacing12))
-        Column(horizontalAlignment = Alignment.End) {
-            Text(
-                text = GtfsTime.format(result.depMin, result.depDayOffset, use24h),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-                fontFamily = FontFamily.Monospace,
-                color = KraftColors.AuroraGreen,
-            )
-            Text(
-                text = GtfsTime.format(result.arrMin, result.arrDayOffset, use24h),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                fontFamily = FontFamily.Monospace,
-            )
-            Text(
-                text = "${durH}h ${durM}m",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
         }
     }
 }
