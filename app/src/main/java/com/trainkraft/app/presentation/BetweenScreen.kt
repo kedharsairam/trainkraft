@@ -117,7 +117,6 @@ fun BetweenScreen(
     val selectedDate by viewModel.selectedDate.collectAsState()
     val typeFilter by viewModel.typeFilter.collectAsState()
     val sort by viewModel.sort.collectAsState()
-    val usualDelays by viewModel.usualDelays.collectAsState()
 
     val use24h by remember(appContext) {
         SettingsStore.use24hFlow(appContext)
@@ -131,11 +130,8 @@ fun BetweenScreen(
     val dayOfRuns = remember(allRows) { allRows.map { it.dayOfRun } }
     val counts = remember(dayOfRuns, week) { countsForDates(dayOfRuns, week) }
     val typeOptions = remember(allRows) { distinctTypeFilters(allRows) }
-    val visible = remember(allRows, selectedDate, typeFilter, sort, usualDelays) {
-        applyBetweenView(allRows, selectedDate, typeFilter, sort, usualDelays)
-    }
-    val bestPickNumber = remember(visible, sort, usualDelays) {
-        smartestBestPickNumber(visible, sort, usualDelays)
+    val visible = remember(allRows, selectedDate, typeFilter, sort) {
+        applyBetweenView(allRows, selectedDate, typeFilter, sort)
     }
     val canReload = fromStation != null && toStation != null
 
@@ -310,8 +306,6 @@ fun BetweenScreen(
                             row = row,
                             selectedDate = selectedDate,
                             use24h = use24h,
-                            usualDelayMin = usualDelays[row.trainNumber],
-                            isBestPick = row.trainNumber == bestPickNumber,
                             onTrainClick = {
                                 haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                 focusManager.clearFocus()
@@ -487,11 +481,6 @@ private fun FilterSortToolbar(
                 selected = sort == BetweenSort.ARRIVAL,
                 onClick = { onSort(BetweenSort.ARRIVAL) },
             )
-            ToolbarChip(
-                label = "Smartest",
-                selected = sort == BetweenSort.SMARTEST,
-                onClick = { onSort(BetweenSort.SMARTEST) },
-            )
         }
     }
 }
@@ -530,8 +519,6 @@ private fun BetweenTrainCard(
     row: BetweenUiRow,
     selectedDate: LocalDate,
     use24h: Boolean = true,
-    usualDelayMin: Int? = null,
-    isBestPick: Boolean = false,
     onTrainClick: () -> Unit,
 ) {
     val durationMin =
@@ -571,9 +558,6 @@ private fun BetweenTrainCard(
         verticalArrangement = Arrangement.spacedBy(KraftSpacing.Spacing8),
     ) {
         // Line 1: number + name + type chip.
-        if (isBestPick) {
-            BestPickChip()
-        }
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(KraftSpacing.Spacing8),
@@ -597,14 +581,6 @@ private fun BetweenTrainCard(
             if (row.typeDesc.isNotBlank()) {
                 TypeBadge(text = row.typeDesc)
             }
-        }
-
-        // Typical-delay badge from the pack arrival prior at the destination
-        // stop ("usually +25" amber / "usually on time" green); missing → no
-        // badge, never invented.
-        val usualLabel = usualDelayBadgeLabel(usualDelayMin)
-        if (usualLabel != null && usualDelayMin != null) {
-            UsualDelayBadge(arrAvgMin = usualDelayMin, label = usualLabel)
         }
 
         // Line 2 (hero): dep — duration — arr.
@@ -748,73 +724,6 @@ private fun BetweenTrainCard(
                 Text("Track")
             }
         }
-    }
-}
-
-/**
- * "best pick" header chip for the Smartest top card: muted tonal surface,
- * tabular figures, non-interactive with a spoken description. Shown only
- * when Smartest is active and the top card has badge data (else nothing,
- * never invented).
- */
-@Composable
-private fun BestPickChip() {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier
-            .clip(RoundedCornerShape(KraftRadius.Pill))
-            .background(MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.6f))
-            .semantics { contentDescription = "Best pick by predicted arrival" }
-            .padding(
-                horizontal = KraftSpacing.Spacing8,
-                vertical = KraftSpacing.Spacing4,
-            ),
-    ) {
-        Text(
-            text = "best pick",
-            style = tabularFigures(MaterialTheme.typography.labelMedium),
-            color = MaterialTheme.colorScheme.onSecondaryContainer,
-            fontWeight = FontWeight.Medium,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-    }
-}
-
-/**
- * Typical-delay badge: `"usually +25"` amber / `"usually on time"` green.
- * Muted tonal chip, tabular figures, non-interactive with a full spoken
- * description (pack provenance — never Live).
- */
-@Composable
-private fun UsualDelayBadge(arrAvgMin: Int, label: String) {
-    val accent = if (arrAvgMin <= 0) KraftColors.AuroraGreen else KraftColors.AuroraOrange
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier
-            .clip(RoundedCornerShape(KraftRadius.Pill))
-            .background(accent.copy(alpha = 0.12f))
-            .semantics { contentDescription = "Typically $label at destination, 7-day pack average" }
-            .padding(
-                horizontal = KraftSpacing.Spacing8,
-                vertical = KraftSpacing.Spacing4,
-            ),
-    ) {
-        Box(
-            modifier = Modifier
-                .size(6.dp)
-                .clip(CircleShape)
-                .background(accent),
-        )
-        Spacer(Modifier.width(6.dp))
-        Text(
-            text = label,
-            style = tabularFigures(MaterialTheme.typography.labelMedium),
-            color = accent,
-            fontWeight = FontWeight.Medium,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
     }
 }
 

@@ -73,10 +73,11 @@ class NtesRepository(
             NtesJson.decode(it)
         }
 
-    suspend fun avgDelay(trainNumber: String): LoadResult<AvgDelayDto> =
-        cachedLoad("avg:$trainNumber", { NtesApi.avgDelay(trainNumber, it) }) {
-            NtesJson.decode(it)
-        }
+    // NOTE (reality doctrine): the average-delay endpoint is parked — no
+    // screen displays historical averages anymore. NtesApi.avgDelay +
+    // AvgDelayDto stay as tested client capability (DTO parsing is covered
+    // in NtesDtoTest); reintroduce a repository wrapper only with a real UI
+    // surface for it.
 
     suspend fun stationLive(stationCode: String, hours: Int): LoadResult<StationLiveDto> =
         cachedLoad("stn:$stationCode:$hours", { NtesApi.trainsAtStation(stationCode, hours, it) }) {

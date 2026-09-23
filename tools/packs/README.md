@@ -1,11 +1,16 @@
 # TrainKraft pack pipeline (Phase A — Python side)
 
+> PARKED (2026-09-24, reality doctrine): the delay-priors sweep has no
+> consumer — nothing in the app computes futures anymore. The fog/specials
+> path below stays valid whenever published programs need packing. Do not
+> run the sweep on a schedule.
+
 Builds `pack.db`, the offline data pack the Android app imports at first run
-(app `PackImporter` reads `pack.db`: `delay_priors` for typical-delay display,
-`fog_overlays` for seasonal cancellation/frequency warnings, `pack_meta` for
-version/staleness checks). The Android Room side implements the same table
-contract; the DDL in `build_pack.py` is byte-identical to that contract — do
-not "improve" it.
+(app `PackImporter` reads `pack.db`: `fog_overlays` for seasonal
+cancellation/frequency notices, `pack_meta` for version/staleness checks;
+`delay_priors` imports for schema stability but nothing reads it). The
+Android Room side implements the same table contract; the DDL in
+`build_pack.py` is byte-identical to that contract — do not "improve" it.
 
 Pipeline stages (all stdlib-only, no pip installs):
 

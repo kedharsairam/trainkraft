@@ -18,10 +18,10 @@ import kotlin.math.sqrt
  * - Route order comes from the offline GTFS schedule
  *   ([com.trainkraft.app.data.TrainDao.getTrainSchedule], `seq`-ordered stop
  *   codes) passed in as plain `List<String>` — this file never touches a DAO.
- * - Live legs may ALSO be matched against the NTES engine stop list
+ * - Live legs may ALSO be matched against the NTES live stop list
  *   ([com.trainkraft.app.data.LiveStopDto.code] / `DIST` km markers); the
  *   caller decides which list to pass as [routeCodes]. GTFS order is preferred
- *   offline; engine order reflects the live run (diversions, skipped halts).
+ *   offline; live order reflects the actual run (diversions, skipped halts).
  */
 
 /** Mean Earth radius in km (haversine). */
@@ -34,9 +34,8 @@ const val MAX_FIX_ACCURACY_M = 50f
 const val SPEED_WINDOW = 5
 
 /**
- * Below this speed the ETA is withheld (km/h): a stationary train at a halt
- * (or a phone in a pocket at a platform) must read "waiting" downstream, not
- * a huge bogus number — hence "never divide" below this floor.
+ * Below this speed the train reads "waiting" (km/h): a stationary train at
+ * a halt (or a phone in a pocket at a platform) must never show motion.
  */
 const val MIN_MOVING_SPEED_KMH = 8.0
 
@@ -101,27 +100,14 @@ fun smoothedSpeedKmh(fixes: List<FixSample>): Double? {
 }
 
 /**
- * Live ETA in minutes for [remainingKm] at [speedKmh]; null when the speed is
- * below [MIN_MOVING_SPEED_KMH] (stationary/halt — the UI layer shows
- * "waiting") or when either input is non-positive/non-finite. The null (never
- * divide-by-near-zero) is the contract: callers must render "waiting", never
- * a huge minute count.
- */
-fun liveEtaMin(remainingKm: Double, speedKmh: Double): Double? {
-    if (!remainingKm.isFinite() || !speedKmh.isFinite()) return null
-    if (remainingKm <= 0.0 || speedKmh < MIN_MOVING_SPEED_KMH) return null
-    return remainingKm / speedKmh * 60.0
-}
-
-/**
  * Advisory-arrival check: true when the fix is within [radiusM] metres
  * (default [ARRIVAL_RADIUS_M]) of the station coordinate.
  *
  * ADVISORY-ONLY BOUNDARY — READ LOUDLY: this boolean drives local UI
  * ("you've arrived") and local session teardown. It is NEVER written back to
- * any server, never posted to NTES, never shared. Arrival here is a guess
+ * any server, never posted to NTES, never shared. Arrival here is a reading
  * from consumer GPS (±50 m fixes against an 800 m radius); it must not feed
- * delay analytics, pack priors, or any upstream dataset.
+ * any upstream dataset.
  */
 fun arrivedWithinM(
     stationLat: Double,
