@@ -167,6 +167,24 @@ class TrainDetailViewModel(
     private val _stopAlarms = MutableStateFlow<Map<String, Long>>(emptyMap())
     val stopAlarms: StateFlow<Map<String, Long>> = _stopAlarms.asStateFlow()
 
+    /**
+     * DAO-persisted watch station (UPPERCASE or null). The in-memory
+     * [stopAlarms] map dies with the ViewModel (rotation-safe, process-dead);
+     * this survives both, so rows armed in a previous screen instance still
+     * render "Alarm set" (timeless — the epoch lives only in memory).
+     * Refreshed on init and after every watch mutation below.
+     */
+    private val _persistedWatch = MutableStateFlow<String?>(null)
+    val persistedWatch: StateFlow<String?> = _persistedWatch.asStateFlow()
+
+    /**
+     * Station an alarm already fired for (one-shot gate consumed). A row
+     * whose watch station was notified renders UNARMED — the alarm is spent,
+     * even though watchStationCode still names it. Loaded with [refreshPersistedWatch].
+     */
+    private val _notifiedStation = MutableStateFlow<String?>(null)
+    val notifiedStation: StateFlow<String?> = _notifiedStation.asStateFlow()
+
     // --- Prediction engine (Phase B; independent flow, silent-fail → null) ---
     // Priors/fog/vintage come from the local pack tables (empty when the pack
     // is absent — the engine handles that); predictions recompute whenever
@@ -200,9 +218,25 @@ class TrainDetailViewModel(
         loadSidecar()
         // Pack rows load here; the pack file itself is bootstrapped once in
         // AppContainer.database — then recompute predictions on arrival.
+        // The persisted watch station loads alongside (alarm rows armed in a
+        // previous screen instance render "Alarm set" without a clock).
         viewModelScope.launch {
             loadPackInputs()
+            refreshPersistedWatch()
             recomputePredictions()
+        }
+    }
+
+    private suspend fun refreshPersistedWatch() {
+        try {
+            val row = trackingDao?.get(trainNumber.trim())
+            _persistedWatch.value = row?.watchStationCode
+                ?.trim()?.uppercase()?.takeIf { it.isNotEmpty() }
+            _notifiedStation.value = row?.lastApproachFor
+                ?.trim()?.uppercase()?.takeIf { it.isNotEmpty() }
+        } catch (_: Exception) {
+            _persistedWatch.value = null
+            _notifiedStation.value = null
         }
     }
 
@@ -387,12 +421,14 @@ class TrainDetailViewModel(
                     )
                 }
                 _approachWatchEnabled.value = true
+                refreshPersistedWatch()
             } else {
                 if (next.isNotEmpty()) {
                     AlarmScheduler.cancelAlarm(context, trainNumber, next.uppercase())
                 }
                 trackingDao?.setWatchStation(trainNumber, null)
                 _approachWatchEnabled.value = false
+                refreshPersistedWatch()
             }
         }
     }
@@ -418,13 +454,19 @@ class TrainDetailViewModel(
         val live = _liveStatus.value ?: return
         val key = stationCode.trim().uppercase()
         if (key.isEmpty()) return
-        if (_stopAlarms.value.containsKey(key)) {
+        // Armed = in-memory epoch OR persisted watch (previous screen
+        // instance; approach-owned watches are display-suppressed, and the
+        // approach switch owns their lifecycle, so they don't count here).
+        val armed = _stopAlarms.value.containsKey(key) ||
+            (!_approachWatchEnabled.value && _persistedWatch.value.equals(key, ignoreCase = true))
+        if (armed) {
             AlarmScheduler.cancelAlarm(context, trainNumber, key)
             _stopAlarms.value = updateStopAlarmState(_stopAlarms.value, key, null)
             viewModelScope.launch {
                 if (_stopAlarms.value.isEmpty() && !_approachWatchEnabled.value) {
                     trackingDao?.setWatchStation(trainNumber, null)
                 }
+                refreshPersistedWatch()
             }
             return
         }
@@ -437,6 +479,10 @@ class TrainDetailViewModel(
         _stopAlarms.value = updateStopAlarmState(_stopAlarms.value, key, triggerAt)
         viewModelScope.launch {
             trackingDao?.setWatchStation(trainNumber, key)
+            // Fresh arm resets the one-shot gate (a fired-then-re-armed
+            // station would otherwise stay silent forever).
+            trackingDao?.clearApproachNotified(trainNumber)
+            refreshPersistedWatch()
         }
     }
 
@@ -997,6 +1043,34 @@ fun updateStopAlarmState(
     val next = current.toMutableMap()
     if (triggerAtMs == null) next.remove(key) else next[key] = triggerAtMs
     return next
+}
+
+/** What a future row's alarm affordance renders. */
+data class StopAlarmDisplay(val armed: Boolean, val triggerAt: Long?)
+
+/**
+ * Resolves per-stop alarm display: an in-memory trigger wins (timed label);
+ * otherwise the DAO-persisted watch station (previous screen instance, reboot
+ * survivor) renders armed but timeless — the epoch lives only in memory —
+ * UNLESS that station already consumed its one-shot notification
+ * ([notifiedStation]), in which case the alarm is spent and the row reads
+ * unarmed. Blank persisted values never match. Unit-tested.
+ */
+fun resolveStopAlarmDisplay(
+    triggerAt: Long?,
+    persistedWatch: String?,
+    code: String,
+    notifiedStation: String? = null,
+): StopAlarmDisplay {
+    if (triggerAt != null) return StopAlarmDisplay(armed = true, triggerAt = triggerAt)
+    val watch = persistedWatch?.trim().orEmpty()
+    if (watch.isEmpty()) return StopAlarmDisplay(armed = false, triggerAt = null)
+    if (!watch.equals(code.trim(), ignoreCase = true)) {
+        return StopAlarmDisplay(armed = false, triggerAt = null)
+    }
+    val spent = notifiedStation?.trim().orEmpty().equals(code.trim(), ignoreCase = true) &&
+        code.trim().isNotEmpty()
+    return StopAlarmDisplay(armed = !spent, triggerAt = null)
 }
 
 /**

@@ -70,4 +70,38 @@ class StopAlarmStateTest {
         assertTrue(updateStopAlarmState(armed, "   ", 999L) == armed)
         assertTrue(updateStopAlarmState(armed, "", null) == armed)
     }
+
+    @Test
+    fun `display prefers the timed trigger`() {
+        val d = resolveStopAlarmDisplay(123L, "BRC", "BRC")
+        assertTrue(d.armed)
+        assertEquals(123L, d.triggerAt)
+    }
+
+    @Test
+    fun `display renders timeless armed from persisted watch`() {
+        val d = resolveStopAlarmDisplay(null, "brc", "BRC")
+        assertTrue(d.armed)
+        assertEquals(null, d.triggerAt)
+    }
+
+    @Test
+    fun `display ignores blank or mismatched watch`() {
+        assertTrue(!resolveStopAlarmDisplay(null, "", "BRC").armed)
+        assertTrue(!resolveStopAlarmDisplay(null, null, "BRC").armed)
+        assertTrue(!resolveStopAlarmDisplay(null, "NDLS", "BRC").armed)
+        assertTrue(!resolveStopAlarmDisplay(null, "BRC", "").armed)
+    }
+
+    @Test
+    fun `display unarms a station whose one-shot already fired`() {
+        val d = resolveStopAlarmDisplay(null, "BRC", "BRC", notifiedStation = "BRC")
+        assertTrue(!d.armed)
+    }
+
+    @Test
+    fun `display keeps other stations armed after a fire elsewhere`() {
+        val d = resolveStopAlarmDisplay(null, "KOTA", "KOTA", notifiedStation = "BRC")
+        assertTrue(d.armed)
+    }
 }
