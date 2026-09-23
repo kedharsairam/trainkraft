@@ -20,16 +20,15 @@ import androidx.sqlite.db.SupportSQLiteDatabase
  * `backup_rules.xml` and `data_extraction_rules.xml` exclude `user.db`, so
  * this file never leaves the device.
  *
- * Mechanism: plain Room database, version 3, no asset; migrations
- * [MIGRATION_1_2] (Phase C alarm columns) and [MIGRATION_2_3] (Phase D
- * travel-fix trace table).
- * First-launch seeding from a pre-split `trains.db` (v3) is performed by
- * [TrainDatabase.MIGRATION_3_4], which ATTACHes this file's canonical path
- * ([DB_NAME] under the app database directory) and copies rows before
- * dropping the old tables — see that migration's comment block. Opening this
- * database *before* the trains database (as [com.trainkraft.app.di.AppContainer]
- * does) guarantees the file and its `room_master_table` already exist when the
- * copy runs, so the ATTACH path only ever fills pre-created Room tables.
+ * Mechanism: plain Room database, version 4, no asset; migrations
+ * [MIGRATION_1_2] (Phase C alarm columns), [MIGRATION_2_3] (Phase D
+ * travel-fix trace table) and [MIGRATION_3_4] (Go-live tier flag).
+ * First-launch seeding from a pre-split `trains.db` (v3) is performed
+ * pre-open by [UserDataMigrator] (plain SQLite, never inside a Room
+ * migration — ATTACH there throws under WAL mode); [TrainDatabase]
+ * `MIGRATION_3_4` only drops the old tables. Opening this database
+ * *before* the trains database (as [com.trainkraft.app.di.AppContainer]
+ * does) keeps file creation order stable.
  *
  * Provenance: split out of [TrainDatabase] v3 in Sep 2026 (privacy fix);
  * [TrackedTrainEntity] and [CachedResponseEntity] moved here unchanged, so old
@@ -41,7 +40,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         CachedResponseEntity::class,
         TravelFixEntity::class,
     ],
-    version = 3,
+    version = 4,
     exportSchema = false
 )
 abstract class UserDatabase : RoomDatabase() {
@@ -96,6 +95,21 @@ abstract class UserDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * v3 -> v4: Go-live tier flag on `tracked_trains`. Stopping minute
+         * presence must not unfollow (the bell owns row existence) — hence a
+         * column, not row deletion. Default false = baseline-only, which is
+         * the correct reading of every pre-existing row.
+         */
+        internal val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "ALTER TABLE `tracked_trains` ADD COLUMN `liveTracking` " +
+                        "INTEGER NOT NULL DEFAULT 0"
+                )
+            }
+        }
+
         @Volatile
         private var INSTANCE: UserDatabase? = null
 
@@ -105,7 +119,7 @@ abstract class UserDatabase : RoomDatabase() {
                     context.applicationContext,
                     UserDatabase::class.java,
                     DB_NAME
-                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3).build()
+                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4).build()
                 INSTANCE = instance
                 instance
             }

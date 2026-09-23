@@ -100,7 +100,11 @@ class TravelTraceTest {
         createV2File(now)
 
         val db = Room.databaseBuilder(context, UserDatabase::class.java, dbName)
-            .addMigrations(UserDatabase.MIGRATION_1_2, UserDatabase.MIGRATION_2_3)
+            .addMigrations(
+                UserDatabase.MIGRATION_1_2,
+                UserDatabase.MIGRATION_2_3,
+                UserDatabase.MIGRATION_3_4,
+            )
             .build()
         try {
             // v2 rows survive untouched, watch columns included.
