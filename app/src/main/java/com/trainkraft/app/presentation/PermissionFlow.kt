@@ -97,9 +97,11 @@ object PermissionFlow {
     }
 
     // ------------------------------------------------- Phase C live tracking
-    // Additive only: nothing above is touched. Location is EXCLUDED here —
-    // Phase C live tracking has no GPS (minute NTES polling + AlarmManager
-    // only); location belongs to Phase D travel mode ([TrackingPermission]).
+    // Additive only: nothing above is touched. Location is EXCLUDED from
+    // Phase C live tracking — it has no GPS (minute NTES polling +
+    // AlarmManager only). Location belongs to Phase D travel mode instead:
+    // see [TRAVEL_MODE_LOCATION_RATIONALE] below (the single exception to
+    // the no-location rule, added additively for on-board GPS).
 
     /**
      * Live-tracking requirements in request order: notifications (the alert
@@ -141,4 +143,21 @@ object PermissionFlow {
         if (exactAlarmMissing) add(LiveTrackingRequirement.EXACT_ALARM)
         if (batteryExemptionMissing) add(LiveTrackingRequirement.BATTERY_EXEMPTION)
     }
+
+    // ------------------------------------------- Phase D travel mode (GPS)
+    // Additive only: nothing above is touched. Phase C live tracking stays
+    // server-only; this is the one place location is asked for — on-board
+    // phone GPS while riding (foreground-only, no background grant).
+
+    /**
+     * Travel-mode location rationale (literal UI copy — the on-board entry
+     * renders this verbatim in its rationale dialog). Distinct from Go-live
+     * on purpose: Go-live = minute server checks (no GPS); on-board = phone
+     * GPS while you ride (fixes stay on-device, session ends on Stop).
+     */
+    const val TRAVEL_MODE_LOCATION_RATIONALE =
+        "On-board travel mode uses your phone's GPS while you ride — " +
+            "live speed, next-stop distance and arrival detection. Fixes stay " +
+            "on this phone and stop when you tap Stop. " +
+            "(Go-live instead checks the server every minute, without GPS.)"
 }

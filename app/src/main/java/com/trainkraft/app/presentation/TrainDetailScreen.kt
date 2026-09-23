@@ -1,5 +1,6 @@
 package com.trainkraft.app.presentation
 
+import android.Manifest
 import android.app.Application
 import android.content.Intent
 
@@ -79,6 +80,7 @@ import com.kraft.ui.components.KraftTopBar
 import com.kraft.ui.components.ShimmerList
 import com.kraft.ui.tokens.KraftRadius
 import com.kraft.ui.tokens.KraftSpacing
+import com.trainkraft.app.TravelService
 import com.trainkraft.app.data.LiveStopDto
 import com.trainkraft.app.data.NtesFormats
 import com.trainkraft.app.data.SettingsStore
@@ -139,6 +141,21 @@ fun TrainDetailScreen(
         if (granted) viewModel.toggleTracking()
     }
 
+    // Phase D on-board entry: location launcher is caller-owned (this screen
+    // launches the system dialog). Granted → start GPS service + open the
+    // travel screen. Denied → server tracking (bell / Go-live) is unchanged
+    // and we never re-prompt (no nagging — documented decision).
+    var showTravel by remember { mutableStateOf(false) }
+    var showTravelRationale by remember { mutableStateOf(false) }
+    val travelPermissionLauncher = rememberLauncherForActivityResult(
+        contract = androidx.activity.result.contract.ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        if (granted) {
+            TravelService.start(context.applicationContext, trainNumber)
+            showTravel = true
+        }
+    }
+
     val appContext = context.applicationContext
 
     // 24h format preference
@@ -195,6 +212,17 @@ fun TrainDetailScreen(
             showOnboarding = true
         } else {
             viewModel.startLiveTracking(appContext)
+        }
+    }
+
+    // Phase D on-board entry: granted → GPS service + travel screen;
+    // missing → rationale dialog first (system dialog stays caller-launched).
+    fun requestOnBoard() {
+        if (PermissionFlow.hasFineLocation(context)) {
+            TravelService.start(appContext, trainNumber)
+            showTravel = true
+        } else {
+            showTravelRationale = true
         }
     }
 
@@ -265,6 +293,16 @@ fun TrainDetailScreen(
     val predictionsByCode = remember(predictions) {
         predictions?.predictions?.associateBy { it.stationCode.uppercase(Locale.ENGLISH) }
             .orEmpty()
+    }
+    // Phase D no-fix fallback: next unreached server stop + its engine basis
+    // chip, shown on the travel screen until GPS locks (existing predictions
+    // reused as fallback — PredictionEngine itself is untouched).
+    val travelFallbackNext = remember(liveStatus) {
+        liveStatus?.nextUnreachedStop()
+    }
+    val travelFallbackBasis = remember(predictionsByCode, travelFallbackNext) {
+        travelFallbackNext?.let { predictionsByCode[it.code.uppercase(Locale.ENGLISH)] }
+            ?.let { basisChipLabel(it.basis) }
     }
     val positionLabel = remember(predictions) {
         val journey = predictions ?: return@remember null
@@ -406,6 +444,16 @@ fun TrainDetailScreen(
                                     viewModel.refreshLiveStatus()
                                 },
                                 seasonalNote = seasonalNote,
+                            )
+                        }
+                        // Phase D on-board entry: right under the header, next
+                        // to the Go-live story (top-bar bell/Go-live untouched).
+                        item(key = "travel-entry") {
+                            TravelModeEntry(
+                                onBoard = {
+                                    haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    requestOnBoard()
+                                },
                             )
                         }
                         val live = liveStatus
@@ -717,6 +765,42 @@ fun TrainDetailScreen(
                 viewModel.startLiveTracking(appContext)
             },
             onDismiss = { showOnboarding = false },
+        )
+    }
+
+    // Phase D on-board rationale (literal PermissionFlow copy, verbatim).
+    if (showTravelRationale) {
+        AlertDialog(
+            onDismissRequest = { showTravelRationale = false },
+            title = { Text("On-board travel mode") },
+            text = { Text(PermissionFlow.TRAVEL_MODE_LOCATION_RATIONALE) },
+            confirmButton = {
+                TextButton(onClick = {
+                    showTravelRationale = false
+                    travelPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+                }) {
+                    Text("Allow")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showTravelRationale = false }) {
+                    Text("Not now")
+                }
+            },
+        )
+    }
+
+    // Phase D travel screen: state-driven full-screen overlay (no nav-graph
+    // change — TrainKraftNavHost is outside this unit's owned files, so the
+    // route is deferred; the screen covers the detail until closed).
+    if (showTravel) {
+        TravelScreen(
+            trainNumber = trainNumber,
+            fallbackStopLabel = travelFallbackNext?.let {
+                if (it.name.isBlank()) it.code else "${it.code} · ${it.name}"
+            },
+            fallbackBasisLabel = travelFallbackBasis,
+            onClose = { showTravel = false },
         )
     }
 }
