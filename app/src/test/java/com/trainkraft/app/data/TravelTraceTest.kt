@@ -23,7 +23,8 @@ import org.robolectric.RobolectricTestRunner
  * Strategy (mirrors [WatchStationMigrationTest]): a real v2-shaped file DB
  * (hand DDL matching the v2 entities exactly — 8-column `tracked_trains`
  * with the Phase C watch columns + `cached_responses`), one tracked row,
- * then open via Room v3 + MIGRATION_1_2 + MIGRATION_2_3 and assert through
+ * then open via Room v5 + MIGRATION_1_2 + MIGRATION_2_3 + MIGRATION_3_4 +
+ * MIGRATION_4_5 and assert through
  * the real DAOs: old rows survive, `travel_fixes` starts empty, and the new
  * DAO insert/query/prune round-trips. Also pins a fresh v3 install
  * (in-memory) carrying trace rows.
@@ -104,6 +105,7 @@ class TravelTraceTest {
                 UserDatabase.MIGRATION_1_2,
                 UserDatabase.MIGRATION_2_3,
                 UserDatabase.MIGRATION_3_4,
+                UserDatabase.MIGRATION_4_5,
             )
             .build()
         try {

@@ -20,10 +20,10 @@ import androidx.sqlite.db.SupportSQLiteDatabase
  * `backup_rules.xml` and `data_extraction_rules.xml` exclude `user.db`, so
  * this file never leaves the device.
  *
- * Mechanism: plain Room database, version 4, no asset; migrations
+ * Mechanism: plain Room database, version 5, no asset; migrations
  * [MIGRATION_1_2] (Phase C alarm columns), [MIGRATION_2_3] (Phase D
- * travel-fix trace table) and [MIGRATION_3_4] (Go-live tier flag).
- * First-launch seeding from a pre-split `trains.db` (v3) is performed
+ * travel-fix trace table), [MIGRATION_3_4] (Go-live tier flag) and
+ * [MIGRATION_4_5] (on-device alert-log table). First-launch seeding from a pre-split `trains.db` (v3) is performed
  * pre-open by [UserDataMigrator] (plain SQLite, never inside a Room
  * migration — ATTACH there throws under WAL mode); [TrainDatabase]
  * `MIGRATION_3_4` only drops the old tables. Opening this database
@@ -39,8 +39,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         TrackedTrainEntity::class,
         CachedResponseEntity::class,
         TravelFixEntity::class,
+        AlertLogEntity::class,
     ],
-    version = 4,
+    version = 5,
     exportSchema = false
 )
 abstract class UserDatabase : RoomDatabase() {
@@ -48,6 +49,7 @@ abstract class UserDatabase : RoomDatabase() {
     abstract fun trackingDao(): TrackingDao
     abstract fun cacheDao(): CacheDao
     abstract fun travelTraceDao(): TravelTraceDao
+    abstract fun alertLogDao(): AlertLogDao
 
     companion object {
         const val DB_NAME = "user.db"
@@ -110,6 +112,33 @@ abstract class UserDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * v4 -> v5: on-device alert-log table (`alert_log`).
+         * Fresh CREATE TABLE matching [AlertLogEntity] DDL exactly
+         * (auto-id PK + index on `tsEpochMs` for the newest-first query); no
+         * backfill — a new table starts empty, which is the correct default.
+         * Existing `tracked_trains` / `cached_responses` / `travel_fixes`
+         * rows are untouched. Lives in user.db (backup-excluded) so alert
+         * history never leaves the device; growth capped by the 90-day
+         * prune on every log (see [ALERT_LOG_RETENTION_MS]).
+         */
+        internal val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `alert_log` (" +
+                        "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                        "`trainNumber` TEXT NOT NULL, " +
+                        "`title` TEXT NOT NULL, " +
+                        "`body` TEXT NOT NULL, " +
+                        "`tsEpochMs` INTEGER NOT NULL)"
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_alert_log_tsEpochMs` " +
+                        "ON `alert_log` (`tsEpochMs`)"
+                )
+            }
+        }
+
         @Volatile
         private var INSTANCE: UserDatabase? = null
 
@@ -119,7 +148,7 @@ abstract class UserDatabase : RoomDatabase() {
                     context.applicationContext,
                     UserDatabase::class.java,
                     DB_NAME
-                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4).build()
+                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5).build()
                 INSTANCE = instance
                 instance
             }
