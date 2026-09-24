@@ -433,7 +433,9 @@ data class TravelSummary(
  * directly unit-testable ([TravelServiceLogicTest]). Speed, remaining
  * distance and next stop are GPS measurements; no arrival-time estimates
  * anywhere. A halted speed (< 8 km/h) reads "waiting · next <stop>"
- * (never a bogus count); with no route at all it reads "waiting for GPS".
+ * (never a bogus count); with no route at all it reads "waiting for GPS"
+ * unless the fix itself is fresh and moving, in which case the live
+ * GPS speed leads ("87 km/h · tap for details").
  */
 fun travelSummaryFor(
     trainNumber: String,
@@ -453,6 +455,11 @@ fun travelSummaryFor(
         // Halt: "waiting" only, never a bogus count.
         nextStop != null -> "$speedText · next $nextStop · tap for details"
         halted -> "$speedText · tap for details"
+        // Moving with no route/next-stop yet: lead with the fresh GPS speed
+        // ("87 km/h · tap for details") instead of "waiting for GPS" — the
+        // fix is live, only the anchor is unknown. A stale (null-speed) fix
+        // still falls through to waiting-for-GPS below.
+        moving -> "$speedText · tap for details"
         else -> "waiting for GPS · tap for details"
     }
     return TravelSummary(

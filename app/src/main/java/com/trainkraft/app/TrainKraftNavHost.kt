@@ -14,11 +14,17 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.trainkraft.app.presentation.AlertsLogScreen
 import com.trainkraft.app.presentation.BetweenScreen
+import com.trainkraft.app.presentation.HelpScreen
+import com.trainkraft.app.presentation.LicensesScreen
 import com.trainkraft.app.presentation.PnrScreen
+import com.trainkraft.app.presentation.PrivacyScreen
 import com.trainkraft.app.presentation.SearchScreen
 import com.trainkraft.app.presentation.SettingsScreen
 import com.trainkraft.app.presentation.StationBoardScreen
+import com.trainkraft.app.presentation.TermsScreen
+import com.trainkraft.app.presentation.TimetableScreen
 import com.trainkraft.app.presentation.TrainDetailScreen
 import com.trainkraft.app.presentation.TravelScreen
 
@@ -66,6 +72,12 @@ object TrainKraftDestinations {
     const val SETTINGS = "settings"
     const val BETWEEN = "between"
     const val PNR = "pnr"
+    const val TIMETABLE = "timetable"
+    const val ALERTS_LOG = "alertsLog"
+    const val HELP = "help"
+    const val TERMS = "terms"
+    const val PRIVACY = "privacy"
+    const val LICENSES = "licenses"
 
     const val TRAIN_DETAIL_ROUTE = "trainDetail/{trainNumber}"
     const val STATION_BOARD_ROUTE = "stationBoard/{stationCode}"
@@ -267,6 +279,36 @@ fun TrainKraftNavHost(deepLinkTrainNumber: String? = null) {
                         launchSingleTop = true
                     }
                 },
+                onTimetableClick = {
+                    navController.navigate(TrainKraftDestinations.TIMETABLE) {
+                        launchSingleTop = true
+                    }
+                },
+                onAlertsClick = {
+                    navController.navigate(TrainKraftDestinations.ALERTS_LOG) {
+                        launchSingleTop = true
+                    }
+                },
+                onHelpClick = {
+                    navController.navigate(TrainKraftDestinations.HELP) {
+                        launchSingleTop = true
+                    }
+                },
+                onTermsClick = {
+                    navController.navigate(TrainKraftDestinations.TERMS) {
+                        launchSingleTop = true
+                    }
+                },
+                onPrivacyClick = {
+                    navController.navigate(TrainKraftDestinations.PRIVACY) {
+                        launchSingleTop = true
+                    }
+                },
+                onLicensesClick = {
+                    navController.navigate(TrainKraftDestinations.LICENSES) {
+                        launchSingleTop = true
+                    }
+                },
             )
         }
         // PNR Status — slide from right
@@ -278,6 +320,66 @@ fun TrainKraftNavHost(deepLinkTrainNumber: String? = null) {
             popExitTransition = { slideOutToRight },
         ) {
             PnrScreen(onBack = { navController.popBackStack() })
+        }
+        // Timetable version — slide from right
+        composable(
+            route = TrainKraftDestinations.TIMETABLE,
+            enterTransition = { slideInFromRight },
+            exitTransition = { slideOutToLeft },
+            popEnterTransition = { slideInFromLeft },
+            popExitTransition = { slideOutToRight },
+        ) {
+            TimetableScreen(onBack = { navController.popBackStack() })
+        }
+        // Alerts log — slide from right
+        composable(
+            route = TrainKraftDestinations.ALERTS_LOG,
+            enterTransition = { slideInFromRight },
+            exitTransition = { slideOutToLeft },
+            popEnterTransition = { slideInFromLeft },
+            popExitTransition = { slideOutToRight },
+        ) {
+            AlertsLogScreen(onBack = { navController.popBackStack() })
+        }
+        // Help & how to use — slide from right
+        composable(
+            route = TrainKraftDestinations.HELP,
+            enterTransition = { slideInFromRight },
+            exitTransition = { slideOutToLeft },
+            popEnterTransition = { slideInFromLeft },
+            popExitTransition = { slideOutToRight },
+        ) {
+            HelpScreen(onBack = { navController.popBackStack() })
+        }
+        // Terms of use — slide from right
+        composable(
+            route = TrainKraftDestinations.TERMS,
+            enterTransition = { slideInFromRight },
+            exitTransition = { slideOutToLeft },
+            popEnterTransition = { slideInFromLeft },
+            popExitTransition = { slideOutToRight },
+        ) {
+            TermsScreen(onBack = { navController.popBackStack() })
+        }
+        // Privacy policy — slide from right
+        composable(
+            route = TrainKraftDestinations.PRIVACY,
+            enterTransition = { slideInFromRight },
+            exitTransition = { slideOutToLeft },
+            popEnterTransition = { slideInFromLeft },
+            popExitTransition = { slideOutToRight },
+        ) {
+            PrivacyScreen(onBack = { navController.popBackStack() })
+        }
+        // Open-source licenses — slide from right
+        composable(
+            route = TrainKraftDestinations.LICENSES,
+            enterTransition = { slideInFromRight },
+            exitTransition = { slideOutToLeft },
+            popEnterTransition = { slideInFromLeft },
+            popExitTransition = { slideOutToRight },
+        ) {
+            LicensesScreen(onBack = { navController.popBackStack() })
         }
     }
 }

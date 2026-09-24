@@ -53,7 +53,9 @@ class UserDatabaseMigrationTest {
     /** Dumps live CREATE statements from a Room database (tables + indices). */
     private fun dumpSchema(db: SupportSQLiteDatabase): List<String> {
         val out = mutableListOf<String>()
-        db.query("SELECT sql FROM sqlite_master WHERE sql NOT NULL AND name NOT LIKE 'room_%' AND name != 'android_metadata'").use { cursor ->
+        // sqlite_sequence is an internal AUTOINCREMENT artifact (present since
+        // the v5 alert_log's auto-id PK) — never re-execute its CREATE.
+        db.query("SELECT sql FROM sqlite_master WHERE sql NOT NULL AND name NOT LIKE 'room_%' AND name != 'android_metadata' AND name != 'sqlite_sequence'").use { cursor ->
             while (cursor.moveToNext()) {
                 out.add(cursor.getString(0))
             }

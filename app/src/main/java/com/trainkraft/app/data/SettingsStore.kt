@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
@@ -86,4 +87,67 @@ object SettingsStore {
             prefs[KEY_LIVE_TRACKING_ONBOARDING_SHOWN] = shown
         }
     }
+
+    // ------------------------------------------------------- recent searches
+    // Same preferencesDataStore file ("trainkraft_settings") — no new store:
+    // history is small (≤10 short strings), read once per SearchViewModel init,
+    // written only on explicit submit/result-tap (never per keystroke).
+
+    private val KEY_RECENT_SEARCHES = stringPreferencesKey("recent_searches")
+
+    /** Max stored queries: most-recent-first, case-insensitive dedup on save. */
+    const val MAX_RECENT_SEARCHES = 10
+
+
+    fun recentSearchesFlow(context: Context): Flow<List<String>> =
+        context.settingsDataStore.data.map { prefs ->
+            decodeRecentSearches(prefs[KEY_RECENT_SEARCHES].orEmpty())
+        }
+
+    suspend fun saveRecentSearch(context: Context, raw: String) {
+        val query = raw.trim()
+        if (query.isEmpty()) return
+        context.settingsDataStore.edit { prefs ->
+            val updated = addRecentSearch(
+                decodeRecentSearches(prefs[KEY_RECENT_SEARCHES].orEmpty()),
+                query,
+                MAX_RECENT_SEARCHES,
+            )
+            prefs[KEY_RECENT_SEARCHES] = encodeRecentSearches(updated)
+        }
+    }
+
+    suspend fun clearRecentSearches(context: Context) {
+        context.settingsDataStore.edit { prefs ->
+            prefs.remove(KEY_RECENT_SEARCHES)
+        }
+    }
+}
+
+/** Unit-separator join: queries never contain it; preserves order. */
+private const val RECENT_SEPARATOR = "\u001F"
+
+/**
+ * Prepends [query] most-recent-first, dropping any existing entry that
+ * matches case-insensitively, capping at [max]. Blank queries are ignored.
+ * Pure — unit tested.
+ */
+fun addRecentSearch(
+    existing: List<String>,
+    query: String,
+    max: Int = SettingsStore.MAX_RECENT_SEARCHES,
+): List<String> {
+    val trimmed = query.trim()
+    if (trimmed.isEmpty()) return existing
+    return (listOf(trimmed) + existing.filterNot { it.equals(trimmed, ignoreCase = true) })
+        .take(max.coerceAtLeast(0))
+}
+
+/** Order-preserving encode for the single-string DataStore value. Pure. */
+fun encodeRecentSearches(items: List<String>): String = items.joinToString(RECENT_SEPARATOR)
+
+/** Inverse of [encodeRecentSearches]; drops blanks. Pure — unit tested. */
+fun decodeRecentSearches(raw: String): List<String> {
+    if (raw.isEmpty()) return emptyList()
+    return raw.split(RECENT_SEPARATOR).map { it.trim() }.filter { it.isNotEmpty() }
 }

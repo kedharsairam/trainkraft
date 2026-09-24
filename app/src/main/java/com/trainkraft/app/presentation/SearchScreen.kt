@@ -29,6 +29,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Train
@@ -101,6 +102,7 @@ fun SearchScreen(
     val dbError by viewModel.dbError.collectAsState()
     val tracked by viewModel.tracked.collectAsState()
     val liveSummaries by viewModel.liveSummaries.collectAsState()
+    val recentSearches by viewModel.recentSearches.collectAsState()
     val haptics = LocalHapticFeedback.current
     val focusManager = LocalFocusManager.current
     val focusRequester = remember { FocusRequester() }
@@ -199,7 +201,10 @@ fun SearchScreen(
                     },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                    keyboardActions = KeyboardActions(onSearch = { focusManager.clearFocus() }),
+                    keyboardActions = KeyboardActions(onSearch = {
+                        viewModel.recordRecentSearch(query)
+                        focusManager.clearFocus()
+                    }),
                     shape = RoundedCornerShape(KraftRadius.Pill),
                     colors = TextFieldDefaults.colors(
                         focusedIndicatorColor = Color.Transparent,
@@ -243,13 +248,23 @@ fun SearchScreen(
                     )
                 }
                 query.isBlank() -> {
-                    // Home IA: quick actions, alerts status, tracked overview.
+                    // Home IA: recent searches, quick actions, alerts status,
+                    // tracked overview. History shows ONLY here (blank query):
+                    // any typed query hands the column to results, and an
+                    // empty history renders nothing (no empty-state noise).
                     Column(
                         modifier = Modifier
                             .fillMaxSize()
                             .verticalScroll(homeScroll),
                         verticalArrangement = Arrangement.spacedBy(KraftSpacing.Spacing8),
                     ) {
+                        if (recentSearches.isNotEmpty()) {
+                            RecentSearchesSection(
+                                items = recentSearches,
+                                onRerun = viewModel::onQueryChange,
+                                onClearAll = viewModel::clearRecentSearches,
+                            )
+                        }
                         QuickActionGrid(
                             onBetweenClick = onBetweenClick,
                             onPnrClick = onPnrClick,
@@ -308,7 +323,10 @@ fun SearchScreen(
                             items(trainResults, key = { "train-${it.trainNumber}" }) { train ->
                                 TrainCard(
                                     train = train,
-                                    onClick = { onTrainClick(train.trainNumber) },
+                                    onClick = {
+                                        viewModel.recordRecentSearch(query)
+                                        onTrainClick(train.trainNumber)
+                                    },
                                 )
                             }
                         }
@@ -319,7 +337,10 @@ fun SearchScreen(
                             items(stationResults, key = { "station-${it.stopId}" }) { station ->
                                 StationCard(
                                     station = station,
-                                    onClick = { onStationClick(station.code) },
+                                    onClick = {
+                                        viewModel.recordRecentSearch(query)
+                                        onStationClick(station.code)
+                                    },
                                 )
                             }
                         }
@@ -561,5 +582,84 @@ private fun StationCard(station: StationEntity, onClick: () -> Unit) {
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f),
         )
+    }
+}
+
+/**
+ * Recent-search history: tap re-runs the query (the debounced collector in
+ * [SearchViewModel] picks it up), one Clear-all row with haptics, no
+ * per-item delete (scope). Rendered ONLY when the query box is blank and the
+ * list is non-empty — callers gate both conditions.
+ */
+@Composable
+private fun RecentSearchesSection(
+    items: List<String>,
+    onRerun: (String) -> Unit,
+    onClearAll: () -> Unit,
+) {
+    val haptics = LocalHapticFeedback.current
+    Column(verticalArrangement = Arrangement.spacedBy(KraftSpacing.Spacing8)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            SectionHeader("Recent searches (${items.size})")
+            Spacer(Modifier.weight(1f))
+            Text(
+                text = "Clear all",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier
+                    .clickable(
+                        role = Role.Button,
+                        onClickLabel = "Clear all recent searches",
+                        onClick = {
+                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                            onClearAll()
+                        },
+                    )
+                    .padding(
+                        horizontal = KraftSpacing.Spacing16,
+                        vertical = KraftSpacing.Spacing8,
+                    ),
+            )
+        }
+        items.forEach { item ->
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(KraftRadius.Standard))
+                    .background(MaterialTheme.colorScheme.surfaceContainerLow)
+                    .clickable(
+                        role = Role.Button,
+                        onClickLabel = "Search again for $item",
+                        onClick = {
+                            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            onRerun(item)
+                        },
+                    )
+                    .padding(
+                        horizontal = KraftSpacing.Spacing16,
+                        vertical = KraftSpacing.Spacing12,
+                    )
+                    .heightIn(min = KraftSpacing.TouchTarget),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    Icons.Filled.History,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(KraftIconSize.Medium),
+                )
+                Spacer(Modifier.width(KraftSpacing.Spacing12))
+                Text(
+                    text = item,
+                    style = tabularFigures(MaterialTheme.typography.bodyLarge),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        }
     }
 }
