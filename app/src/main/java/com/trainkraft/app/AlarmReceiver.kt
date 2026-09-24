@@ -13,6 +13,7 @@ import com.trainkraft.app.data.NotificationPolicy
 import com.trainkraft.app.data.ResponseCache
 import com.trainkraft.app.data.SettingsStore
 import com.trainkraft.app.data.UserDatabase
+import com.trainkraft.app.data.logAlertWithPrune
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -92,6 +93,16 @@ class AlarmReceiver : BroadcastReceiver() {
         when (val decision = NotificationPolicy.decide(trainNumber, snapshot, dao.get(trainNumber))) {
             is NotificationPolicy.Decision.Notify -> {
                 postNotification(context, trainNumber, decision.title, decision.body)
+                // Best-effort on-device log AFTER the post: fire-and-forget
+                // on the receiver scope so the broadcast never waits on disk.
+                scope.launch {
+                    runCatching {
+                        logAlertWithPrune(
+                            UserDatabase.getInstance(context).alertLogDao(),
+                            trainNumber, decision.title, decision.body,
+                        )
+                    }
+                }
                 if (decision.journeyOver) {
                     dao.delete(trainNumber)
                     LiveStatusNotificationWorker.stop(context, trainNumber)
@@ -119,6 +130,15 @@ class AlarmReceiver : BroadcastReceiver() {
         )
         if (approach is NotificationPolicy.Decision.Notify) {
             postNotification(context, trainNumber, approach.title, approach.body)
+            // Same best-effort log AFTER the post (fire-and-forget).
+            scope.launch {
+                runCatching {
+                    logAlertWithPrune(
+                        UserDatabase.getInstance(context).alertLogDao(),
+                        trainNumber, approach.title, approach.body,
+                    )
+                }
+            }
             runCatching { dao.markApproachNotified(trainNumber, stationCode.uppercase()) }
         }
     }

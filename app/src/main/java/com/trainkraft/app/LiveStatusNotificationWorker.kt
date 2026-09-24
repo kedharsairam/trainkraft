@@ -21,6 +21,7 @@ import com.trainkraft.app.data.NtesConfig
 import com.trainkraft.app.data.NotificationPolicy
 import com.trainkraft.app.data.PollSnapshot
 import com.trainkraft.app.data.UserDatabase
+import com.trainkraft.app.data.logAlertWithPrune
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -158,6 +159,14 @@ class LiveStatusNotificationWorker(
             when (decision) {
                 is NotificationPolicy.Decision.Notify -> {
                     postNotification(trainNumber, decision.title, decision.body)
+                    // Best-effort on-device log AFTER the post (doWork's own
+                    // coroutine is the scope; runCatching never throws/delays).
+                    runCatching {
+                        logAlertWithPrune(
+                            UserDatabase.getInstance(applicationContext).alertLogDao(),
+                            trainNumber, decision.title, decision.body, now,
+                        )
+                    }
                     if (decision.journeyOver) {
                         dao.delete(trainNumber)
                         stop(applicationContext, trainNumber)

@@ -19,6 +19,8 @@ import com.trainkraft.app.data.LiveStatusDto
 import com.trainkraft.app.data.LoadResult
 import com.trainkraft.app.data.NotificationPolicy
 import com.trainkraft.app.data.PollSnapshot
+import com.trainkraft.app.data.UserDatabase
+import com.trainkraft.app.data.logAlertWithPrune
 import com.trainkraft.app.presentation.currentStopIndex
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -265,6 +267,16 @@ class TrackingService : Service() {
         when (val decision = NotificationPolicy.decide(trainNumber, snapshot, dao.get(trainNumber))) {
             is NotificationPolicy.Decision.Notify -> {
                 postAlert(trainNumber, decision.title, decision.body)
+                // Best-effort on-device log AFTER the post: fire-and-forget
+                // on the service scope so the poll loop never waits on disk.
+                scope.launch {
+                    runCatching {
+                        logAlertWithPrune(
+                            UserDatabase.getInstance(this@TrackingService).alertLogDao(),
+                            trainNumber, decision.title, decision.body,
+                        )
+                    }
+                }
                 if (decision.journeyOver) {
                     dao.delete(trainNumber)
                     LiveStatusNotificationWorker.stop(this, trainNumber)
@@ -292,6 +304,15 @@ class TrackingService : Service() {
         )
         if (approach is NotificationPolicy.Decision.Notify) {
             postAlert(trainNumber, approach.title, approach.body)
+            // Same best-effort log AFTER the post (fire-and-forget).
+            scope.launch {
+                runCatching {
+                    logAlertWithPrune(
+                        UserDatabase.getInstance(this@TrackingService).alertLogDao(),
+                        trainNumber, approach.title, approach.body,
+                    )
+                }
+            }
             runCatching { dao.markApproachNotified(trainNumber, fresh?.watchStationCode?.trim().orEmpty()) }
         }
         return recommended

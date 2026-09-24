@@ -1,0 +1,6 @@
+{
+  "_comment": "TrainKraft offline-timetable version. Built by tools/gtfs_to_sqlite.py from a GTFS static zip (default ../../app-references/train-status/gtfs.zip, not checked into git) into app/src/main/assets/trains.db. Vintage Aug 2026 per Settings copy ('GTFS snapshot · Aug 2026'), README ('OpenStreetMap GTFS (Aug 2026)'), and tools/packs/docs/GTFS_SOURCE_SPIKE.md (calendar 20250101-20270830; closest upstream mdb-2867 generated ~Nov 2025). trains = row count of the trains table, verified read-only via python sqlite3 on 2026-09-24 = 10594. generatedAt day (15) is a mid-month placeholder — the exact build day is unknown; only the YYYY-MM vintage is authoritative. Compared lexicographically as YYYY-MM by TimetableVersionChecker.isUpdateAvailable.",
+  "version": "2026-08",
+  "generatedAt": "2026-08-15",
+  "trains": 10594
+}
