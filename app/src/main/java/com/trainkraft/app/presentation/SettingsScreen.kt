@@ -1,5 +1,6 @@
 package com.trainkraft.app.presentation
 
+import android.content.Intent
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -19,6 +20,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -56,10 +58,21 @@ import kotlinx.coroutines.launch
 
 private const val SOURCE_URL = "https://github.com/kedharsairam/trainkraft"
 private const val SOURCE_LABEL = "github.com/kedharsairam/trainkraft"
+private const val ISSUE_URL = "https://github.com/kedharsairam/trainkraft/issues/new"
+private const val TIMETABLE_LABEL = "Timetable · Aug 2026"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(onBack: () -> Unit, onPnrClick: () -> Unit = {}) {
+fun SettingsScreen(
+    onBack: () -> Unit,
+    onPnrClick: () -> Unit = {},
+    onTimetableClick: () -> Unit = {},
+    onHelpClick: () -> Unit = {},
+    onTermsClick: () -> Unit = {},
+    onPrivacyClick: () -> Unit = {},
+    onLicensesClick: () -> Unit = {},
+    onAlertsClick: () -> Unit = {},
+) {
     val context = LocalContext.current
     val appContext = remember(context) { context.applicationContext }
     val scope = rememberCoroutineScope()
@@ -228,6 +241,73 @@ fun SettingsScreen(onBack: () -> Unit, onPnrClick: () -> Unit = {}) {
                 HorizontalDivider()
             }
 
+            item(key = "timetable") {
+                ListItem(
+                    headlineContent = { Text("Timetable") },
+                    supportingContent = { Text(TIMETABLE_LABEL) },
+                    trailingContent = {
+                        Icon(
+                            Icons.Filled.ChevronRight,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(20.dp),
+                        )
+                    },
+                    colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.background),
+                    modifier = Modifier
+                        .heightIn(min = 56.dp)
+                        .clickable {
+                            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            onTimetableClick()
+                        },
+                )
+                HorizontalDivider()
+            }
+            item(key = "alerts-log") {
+                ListItem(
+                    headlineContent = { Text("Alerts log") },
+                    supportingContent = { Text("Past notifications for tracked trains") },
+                    trailingContent = {
+                        Icon(
+                            Icons.Filled.ChevronRight,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(20.dp),
+                        )
+                    },
+                    colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.background),
+                    modifier = Modifier
+                        .heightIn(min = 56.dp)
+                        .clickable {
+                            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            onAlertsClick()
+                        },
+                )
+                HorizontalDivider()
+            }
+            item(key = "help") {
+                ListItem(
+                    headlineContent = { Text("Help & how to use") },
+                    supportingContent = { Text("Search, track, alarms, travel mode") },
+                    trailingContent = {
+                        Icon(
+                            Icons.Filled.ChevronRight,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(20.dp),
+                        )
+                    },
+                    colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.background),
+                    modifier = Modifier
+                        .heightIn(min = 56.dp)
+                        .clickable {
+                            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            onHelpClick()
+                        },
+                )
+                HorizontalDivider()
+            }
+
             item(key = "about-header") {
                 SettingsSectionHeader("About")
             }
@@ -282,6 +362,149 @@ fun SettingsScreen(onBack: () -> Unit, onPnrClick: () -> Unit = {}) {
                     colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.background),
                     modifier = Modifier.heightIn(min = 56.dp),
                 )
+                HorizontalDivider()
+            }
+            item(key = "legal-header") {
+                SettingsSectionHeader("Legal")
+            }
+            item(key = "terms") {
+                ListItem(
+                    headlineContent = { Text("Terms of use") },
+                    supportingContent = { Text("Personal use, unofficial app, data as-is") },
+                    trailingContent = {
+                        Icon(
+                            Icons.Filled.ChevronRight,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(20.dp),
+                        )
+                    },
+                    colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.background),
+                    modifier = Modifier
+                        .heightIn(min = 56.dp)
+                        .clickable {
+                            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            onTermsClick()
+                        },
+                )
+                HorizontalDivider()
+            }
+            item(key = "privacy") {
+                ListItem(
+                    headlineContent = { Text("Privacy policy") },
+                    supportingContent = { Text("On-device data, no account, no analytics") },
+                    trailingContent = {
+                        Icon(
+                            Icons.Filled.ChevronRight,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(20.dp),
+                        )
+                    },
+                    colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.background),
+                    modifier = Modifier
+                        .heightIn(min = 56.dp)
+                        .clickable {
+                            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            onPrivacyClick()
+                        },
+                )
+                HorizontalDivider()
+            }
+            item(key = "licenses") {
+                ListItem(
+                    headlineContent = { Text("Open-source licenses") },
+                    supportingContent = { Text("Libraries that power TrainKraft") },
+                    trailingContent = {
+                        Icon(
+                            Icons.Filled.ChevronRight,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(20.dp),
+                        )
+                    },
+                    colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.background),
+                    modifier = Modifier
+                        .heightIn(min = 56.dp)
+                        .clickable {
+                            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            onLicensesClick()
+                        },
+                )
+                HorizontalDivider()
+            }
+            item(key = "share-header") {
+                SettingsSectionHeader("Share")
+            }
+            item(key = "share-app") {
+                ListItem(
+                    headlineContent = { Text("Share app") },
+                    supportingContent = { Text("Send the GitHub link to a friend") },
+                    trailingContent = {
+                        Icon(
+                            Icons.Filled.Share,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(20.dp),
+                        )
+                    },
+                    colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.background),
+                    modifier = Modifier
+                        .heightIn(min = 56.dp)
+                        .clickable {
+                            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            val send = Intent(Intent.ACTION_SEND).apply {
+                                type = "text/plain"
+                                putExtra(Intent.EXTRA_TEXT, SOURCE_URL)
+                            }
+                            context.startActivity(Intent.createChooser(send, "Share TrainKraft"))
+                        },
+                )
+                HorizontalDivider()
+            }
+            item(key = "star") {
+                ListItem(
+                    headlineContent = { Text("Star on GitHub") },
+                    supportingContent = { Text(SOURCE_LABEL) },
+                    trailingContent = {
+                        Icon(
+                            Icons.AutoMirrored.Filled.OpenInNew,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(20.dp),
+                        )
+                    },
+                    colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.background),
+                    modifier = Modifier
+                        .heightIn(min = 56.dp)
+                        .clickable(role = Role.Button) {
+                            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            uriHandler.openUri(SOURCE_URL)
+                        },
+                )
+                HorizontalDivider()
+            }
+            item(key = "report") {
+                ListItem(
+                    headlineContent = { Text("Report an issue") },
+                    supportingContent = { Text("Suggest a feature or report a bug") },
+                    trailingContent = {
+                        Icon(
+                            Icons.AutoMirrored.Filled.OpenInNew,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(20.dp),
+                        )
+                    },
+                    colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.background),
+                    modifier = Modifier
+                        .heightIn(min = 56.dp)
+                        .clickable(role = Role.Button) {
+                            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            uriHandler.openUri(ISSUE_URL)
+                        },
+                )
+                HorizontalDivider()
             }
             item(key = "bottom-spacer") {
                 Spacer(Modifier.padding(KraftSpacing.Spacing16))

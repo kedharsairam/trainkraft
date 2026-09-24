@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.trainkraft.app.TrainKraftApp
 import com.trainkraft.app.data.LiveStatusDto
 import com.trainkraft.app.data.LoadResult
+import com.trainkraft.app.data.SettingsStore
 import com.trainkraft.app.data.StationEntity
 import com.trainkraft.app.BuildConfig
 import com.trainkraft.app.data.TrainDatabase
@@ -59,6 +60,14 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
     val tracked: StateFlow<List<TrackedRow>> = _tracked.asStateFlow()
 
     /**
+     * Recent searches (DataStore, max 10, most-recent-first). Collected once
+     * here so saves/clears re-emit automatically; the section shows only when
+     * the query box is blank and hides entirely when empty.
+     */
+    private val _recentSearches = MutableStateFlow<List<String>>(emptyList())
+    val recentSearches: StateFlow<List<String>> = _recentSearches.asStateFlow()
+
+    /**
      * Live enrichment for the tracked section, keyed by train number. Base
      * rows publish immediately; each entry lands as its `liveStatus` call
      * resolves. Absent key = still loading or silently failed → the card
@@ -71,6 +80,9 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
 
     init {
         refreshTracked()
+        viewModelScope.launch {
+            SettingsStore.recentSearchesFlow(getApplication()).collect { _recentSearches.value = it }
+        }
         viewModelScope.launch {
             @OptIn(FlowPreview::class)
             _query
@@ -126,6 +138,27 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
 
     fun clearQuery() {
         _query.value = ""
+    }
+
+    /**
+     * Records one query into recent-search history. Called ONLY on explicit
+     * submit (IME Search) or result tap — never per keystroke, so prefixes
+     * typed mid-query don't flood the list. Dedup (case-insensitive) + cap
+     * live in [addRecentSearch] via [SettingsStore.saveRecentSearch].
+     */
+    fun recordRecentSearch(raw: String) {
+        val query = raw.trim()
+        if (query.isEmpty()) return
+        viewModelScope.launch {
+            runCatching { SettingsStore.saveRecentSearch(getApplication(), query) }
+        }
+    }
+
+    /** Clears the whole history (single Clear-all row; no per-item delete). */
+    fun clearRecentSearches() {
+        viewModelScope.launch {
+            runCatching { SettingsStore.clearRecentSearches(getApplication()) }
+        }
     }
 
     /**
