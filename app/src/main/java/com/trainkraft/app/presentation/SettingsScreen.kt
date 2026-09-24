@@ -179,7 +179,7 @@ fun SettingsScreen(
                     colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.background),
                     modifier = Modifier
                         .heightIn(min = 56.dp)
-                        .clickable(role = Role.Button) {
+                        .clickable(role = Role.Button, onClickLabel = "Change cache duration") {
                             haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                             showCacheSheet.value = true
                         },
@@ -233,7 +233,7 @@ fun SettingsScreen(
                     colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.background),
                     modifier = Modifier
                         .heightIn(min = 56.dp)
-                        .clickable {
+                        .clickable(onClickLabel = "Open PNR status") {
                             haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                             onPnrClick()
                         },
@@ -256,7 +256,7 @@ fun SettingsScreen(
                     colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.background),
                     modifier = Modifier
                         .heightIn(min = 56.dp)
-                        .clickable {
+                        .clickable(onClickLabel = "Open timetable info") {
                             haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                             onTimetableClick()
                         },
@@ -278,7 +278,7 @@ fun SettingsScreen(
                     colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.background),
                     modifier = Modifier
                         .heightIn(min = 56.dp)
-                        .clickable {
+                        .clickable(onClickLabel = "Open alerts log") {
                             haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                             onAlertsClick()
                         },
@@ -300,7 +300,7 @@ fun SettingsScreen(
                     colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.background),
                     modifier = Modifier
                         .heightIn(min = 56.dp)
-                        .clickable {
+                        .clickable(onClickLabel = "Open help") {
                             haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                             onHelpClick()
                         },
@@ -337,7 +337,7 @@ fun SettingsScreen(
                     colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.background),
                     modifier = Modifier
                         .heightIn(min = 56.dp)
-                        .clickable(role = Role.Button) {
+                        .clickable(role = Role.Button, onClickLabel = "Open source code on GitHub") {
                             haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                             uriHandler.openUri(SOURCE_URL)
                         },
@@ -382,7 +382,7 @@ fun SettingsScreen(
                     colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.background),
                     modifier = Modifier
                         .heightIn(min = 56.dp)
-                        .clickable {
+                        .clickable(onClickLabel = "Open terms of use") {
                             haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                             onTermsClick()
                         },
@@ -404,7 +404,7 @@ fun SettingsScreen(
                     colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.background),
                     modifier = Modifier
                         .heightIn(min = 56.dp)
-                        .clickable {
+                        .clickable(onClickLabel = "Open privacy policy") {
                             haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                             onPrivacyClick()
                         },
@@ -426,7 +426,7 @@ fun SettingsScreen(
                     colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.background),
                     modifier = Modifier
                         .heightIn(min = 56.dp)
-                        .clickable {
+                        .clickable(onClickLabel = "Open open-source licenses") {
                             haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                             onLicensesClick()
                         },
@@ -451,7 +451,7 @@ fun SettingsScreen(
                     colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.background),
                     modifier = Modifier
                         .heightIn(min = 56.dp)
-                        .clickable {
+                        .clickable(onClickLabel = "Share TrainKraft") {
                             haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                             val send = Intent(Intent.ACTION_SEND).apply {
                                 type = "text/plain"
@@ -477,7 +477,7 @@ fun SettingsScreen(
                     colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.background),
                     modifier = Modifier
                         .heightIn(min = 56.dp)
-                        .clickable(role = Role.Button) {
+                        .clickable(role = Role.Button, onClickLabel = "Open source code on GitHub") {
                             haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                             uriHandler.openUri(SOURCE_URL)
                         },
@@ -499,7 +499,7 @@ fun SettingsScreen(
                     colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.background),
                     modifier = Modifier
                         .heightIn(min = 56.dp)
-                        .clickable(role = Role.Button) {
+                        .clickable(role = Role.Button, onClickLabel = "Open issue reporter on GitHub") {
                             haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                             uriHandler.openUri(ISSUE_URL)
                         },
@@ -549,7 +549,10 @@ fun SettingsScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .heightIn(min = 52.dp)
-                            .clickable(role = Role.Button) {
+                            .clickable(
+                                role = Role.Button,
+                                onClickLabel = "Set cache duration",
+                            ) {
                                 haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                 scope.launch {
                                     SettingsStore.setCacheDurationHours(appContext, hours)
