@@ -199,6 +199,7 @@ fun TravelScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .heightIn(min = 64.dp),
+                shape = RoundedCornerShape(KraftRadius.Medium),
             ) {
                 Text(
                     text = "Stop",
@@ -249,6 +250,7 @@ private fun TravelArrivalCard(code: String) {
             .fillMaxWidth()
             .clip(RoundedCornerShape(KraftRadius.Standard))
             .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+            .cardOutline(RoundedCornerShape(KraftRadius.Standard))
             .padding(KraftSpacing.Spacing16),
     ) {
         Box(

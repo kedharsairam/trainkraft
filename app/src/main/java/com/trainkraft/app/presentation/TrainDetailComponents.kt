@@ -9,6 +9,8 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -98,6 +100,7 @@ internal fun AnswerHeader(
             .fillMaxWidth()
             .clip(RoundedCornerShape(KraftRadius.Hero))
             .background(MaterialTheme.colorScheme.surfaceContainerLow)
+            .cardOutline(RoundedCornerShape(KraftRadius.Hero))
             .padding(KraftSpacing.Spacing16),
         verticalArrangement = Arrangement.spacedBy(KraftSpacing.Spacing8),
     ) {
@@ -117,6 +120,10 @@ internal fun AnswerHeader(
             )
         }
         if (headline != null) {
+            // The headline text carries the full state ("Starts 25-Sep-2026",
+            // "Arrived NDLS · On time"); the pill only adds a tone word where
+            // it says something new (Live / Delayed). Danger/neutral states
+            // are self-sufficient — no echo pill.
             Row(
                 horizontalArrangement = Arrangement.spacedBy(KraftSpacing.Spacing8),
                 verticalAlignment = Alignment.CenterVertically,
@@ -127,7 +134,14 @@ internal fun AnswerHeader(
                     fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.weight(1f, fill = false),
                 )
-                StatusPill(label = headline.text, tone = headline.tone.toPill())
+                val pillWord = when (headline.tone) {
+                    HeadlineTone.LIVE -> "Live"
+                    HeadlineTone.LATE -> "Delayed"
+                    HeadlineTone.DANGER, HeadlineTone.NEUTRAL -> null
+                }
+                if (pillWord != null) {
+                    StatusPill(label = pillWord, tone = headline.tone.toPill())
+                }
             }
         }
         if (freshness != null || isLiveLoading) {
@@ -573,6 +587,10 @@ private fun CurrentStopCard(
     Surface(
         shape = RoundedCornerShape(KraftRadius.Standard),
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        border = androidx.compose.foundation.BorderStroke(
+            width = 1.dp,
+            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.35f),
+        ),
         modifier = Modifier
             .fillMaxWidth()
             .semantics(mergeDescendants = true) { contentDescription = spoken },
@@ -959,7 +977,9 @@ private fun ReversalDividerRow() {
 private fun CoachTokenRow(tokens: List<String>) {
     Row(
         horizontalArrangement = Arrangement.spacedBy(KraftSpacing.Spacing4),
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState()),
     ) {
         tokens.forEach { coach ->
             Surface(
@@ -972,6 +992,7 @@ private fun CoachTokenRow(tokens: List<String>) {
                     style = tabularFigures(MaterialTheme.typography.labelSmall)
                         .copy(fontFamily = FontFamily.Monospace),
                     color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
                     modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp),
                 )
             }
@@ -1021,6 +1042,9 @@ internal fun CoachPositionSection(data: LiveStatusDto, highlightIndex: Int? = nu
     Column(
         modifier = Modifier
             .fillMaxWidth()
+            .clip(RoundedCornerShape(KraftRadius.Standard))
+            .background(MaterialTheme.colorScheme.surfaceContainerLow)
+            .cardOutline(RoundedCornerShape(KraftRadius.Standard))
             .padding(KraftSpacing.Spacing16),
         verticalArrangement = Arrangement.spacedBy(KraftSpacing.Spacing8),
     ) {
@@ -1123,7 +1147,7 @@ internal fun ScheduleStopRow(
     use24h: Boolean = true,
 ) {
     val endpointColor = when {
-        isFirst -> MaterialTheme.colorScheme.tertiary
+        isFirst -> KraftColors.AuroraGreen
         isLast -> MaterialTheme.colorScheme.primary
         else -> MaterialTheme.colorScheme.onSurfaceVariant
     }
@@ -1139,14 +1163,19 @@ internal fun ScheduleStopRow(
         Box(
             modifier = Modifier
                 .size(32.dp)
-                .background(endpointColor, CircleShape),
+                .border(
+                    width = 1.dp,
+                    color = endpointColor.copy(alpha = 0.45f),
+                    shape = CircleShape,
+                )
+                .background(endpointColor.copy(alpha = 0.14f), CircleShape),
             contentAlignment = Alignment.Center,
         ) {
             Text(
                 text = stop.seq.toString(),
                 style = tabularFigures(MaterialTheme.typography.labelMedium),
                 fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.surface,
+                color = endpointColor,
             )
         }
         Spacer(Modifier.width(KraftSpacing.Spacing12))
@@ -1247,6 +1276,7 @@ internal fun TravelModeEntry(onBoard: () -> Unit) {
             .fillMaxWidth()
             .clip(RoundedCornerShape(KraftRadius.Standard))
             .background(MaterialTheme.colorScheme.surfaceContainerLow)
+            .cardOutline(RoundedCornerShape(KraftRadius.Standard))
             .padding(KraftSpacing.Spacing16),
         verticalArrangement = Arrangement.spacedBy(KraftSpacing.Spacing8),
     ) {
@@ -1260,9 +1290,13 @@ internal fun TravelModeEntry(onBoard: () -> Unit) {
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        androidx.compose.material3.OutlinedButton(
+        Spacer(Modifier.height(KraftSpacing.Spacing4))
+        androidx.compose.material3.Button(
             onClick = onBoard,
-            modifier = Modifier.heightIn(min = 56.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 52.dp),
+            shape = RoundedCornerShape(KraftRadius.Medium),
         ) {
             Text(
                 text = "I'm on board",
@@ -1291,7 +1325,10 @@ internal fun AlarmSection(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = KraftSpacing.Spacing16),
+            .clip(RoundedCornerShape(KraftRadius.Standard))
+            .background(MaterialTheme.colorScheme.surfaceContainerLow)
+            .cardOutline(RoundedCornerShape(KraftRadius.Standard))
+            .padding(KraftSpacing.Spacing16),
         verticalArrangement = Arrangement.spacedBy(KraftSpacing.Spacing8),
     ) {
         Text(

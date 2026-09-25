@@ -4,6 +4,7 @@ import android.content.Intent
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -30,10 +31,9 @@ import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -50,6 +50,7 @@ import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.kraft.ui.components.KraftTopBar
 import com.kraft.ui.tokens.KraftSpacing
 import com.trainkraft.app.BuildConfig
@@ -113,345 +114,260 @@ fun SettingsScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues),
+            contentPadding = PaddingValues(
+                start = KraftSpacing.ScreenEdge,
+                end = KraftSpacing.ScreenEdge,
+                top = KraftSpacing.Spacing8,
+                bottom = KraftSpacing.Spacing24,
+            ),
+            verticalArrangement = Arrangement.spacedBy(KraftSpacing.Spacing12),
         ) {
             item(key = "data-header") {
                 SettingsSectionHeader("Data")
             }
-            item(key = "auto-refresh") {
-                // Whole-row clickable: row handles toggle + haptics; Switch also toggles
-                // so tapping anywhere (including the switch) works. Switch consumes
-                // its own tap, parent handles the rest — single toggle per tap.
-                ListItem(
-                    headlineContent = { Text("Auto-refresh live status") },
-                    supportingContent = {
-                        Text(
-                            text = if (autoRefresh) "Fetches live status when opening a train"
-                            else "Live status only when you tap “Live Status”",
-                        )
-                    },
-                    trailingContent = {
-                        Switch(
-                            checked = autoRefresh,
-                            onCheckedChange = { enabled ->
-                                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                scope.launch {
-                                    SettingsStore.setAutoRefreshLive(appContext, enabled)
-                                }
-                            },
-                        )
-                    },
-                    colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.background),
-                    modifier = Modifier
-                        .heightIn(min = 56.dp)
-                        .clickable(role = Role.Switch) {
-                            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            scope.launch {
-                                SettingsStore.setAutoRefreshLive(appContext, !autoRefresh)
-                            }
-                        },
-                )
-                HorizontalDivider()
-            }
-            item(key = "cache-duration") {
-                ListItem(
-                    headlineContent = { Text("Cache duration") },
-                    supportingContent = {
-                        Text("Keep offline timetable data for ${SettingsStore.cacheDurationLabel(cacheHours)}")
-                    },
-                    trailingContent = {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(KraftSpacing.Spacing4),
-                        ) {
+            item(key = "data-group") {
+                SettingsGroup {
+                    // Whole-row clickable: row handles toggle + haptics; Switch also toggles
+                    // so tapping anywhere (including the switch) works. Switch consumes
+                    // its own tap, parent handles the rest — single toggle per tap.
+                    ListItem(
+                        headlineContent = { Text("Auto-refresh live status") },
+                        supportingContent = {
                             Text(
-                                text = SettingsStore.cacheDurationLabel(cacheHours),
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                text = if (autoRefresh) "Fetches live status when opening a train"
+                                else "Live status only when you tap “Check live status”",
                             )
-                            Icon(
-                                Icons.Filled.ChevronRight,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(20.dp),
-                            )
-                        }
-                    },
-                    colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.background),
-                    modifier = Modifier
-                        .heightIn(min = 56.dp)
-                        .clickable(role = Role.Button, onClickLabel = "Change cache duration") {
-                            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            showCacheSheet.value = true
                         },
-                )
-                HorizontalDivider()
-            }
-            item(key = "use-24h") {
-                ListItem(
-                    headlineContent = { Text("24-hour time format") },
-                    supportingContent = {
-                        Text(
-                            text = if (use24h) "Show times as 16:55" else "Show times as 4:55 PM",
-                        )
-                    },
-                    trailingContent = {
-                        Switch(
-                            checked = use24h,
-                            onCheckedChange = { enabled ->
+                        trailingContent = {
+                            Switch(
+                                checked = autoRefresh,
+                                onCheckedChange = { enabled ->
+                                    haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    scope.launch {
+                                        SettingsStore.setAutoRefreshLive(appContext, enabled)
+                                    }
+                                },
+                            )
+                        },
+                        colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+                        modifier = Modifier
+                            .heightIn(min = 56.dp)
+                            .clickable(role = Role.Switch) {
                                 haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                 scope.launch {
-                                    SettingsStore.setUse24h(appContext, enabled)
+                                    SettingsStore.setAutoRefreshLive(appContext, !autoRefresh)
                                 }
                             },
-                        )
-                    },
-                    colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.background),
-                    modifier = Modifier
-                        .heightIn(min = 56.dp)
-                        .clickable(role = Role.Switch) {
-                            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            scope.launch {
-                                SettingsStore.setUse24h(appContext, !use24h)
+                    )
+                    SettingsInsetDivider()
+                    ListItem(
+                        headlineContent = { Text("Cache duration") },
+                        supportingContent = {
+                            Text("Keep offline timetable data for ${SettingsStore.cacheDurationLabel(cacheHours)}")
+                        },
+                        trailingContent = {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(KraftSpacing.Spacing4),
+                            ) {
+                                Text(
+                                    text = SettingsStore.cacheDurationLabel(cacheHours),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                                Icon(
+                                    Icons.Filled.ChevronRight,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                                    modifier = Modifier.size(20.dp),
+                                )
                             }
                         },
-                )
-                HorizontalDivider()
+                        colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+                        modifier = Modifier
+                            .heightIn(min = 56.dp)
+                            .clickable(role = Role.Button, onClickLabel = "Change cache duration") {
+                                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                showCacheSheet.value = true
+                            },
+                    )
+                    SettingsInsetDivider()
+                    ListItem(
+                        headlineContent = { Text("24-hour time format") },
+                        supportingContent = {
+                            Text(
+                                text = if (use24h) "Show times as 16:55" else "Show times as 4:55 PM",
+                            )
+                        },
+                        trailingContent = {
+                            Switch(
+                                checked = use24h,
+                                onCheckedChange = { enabled ->
+                                    haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    scope.launch {
+                                        SettingsStore.setUse24h(appContext, enabled)
+                                    }
+                                },
+                            )
+                        },
+                        colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+                        modifier = Modifier
+                            .heightIn(min = 56.dp)
+                            .clickable(role = Role.Switch) {
+                                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                scope.launch {
+                                    SettingsStore.setUse24h(appContext, !use24h)
+                                }
+                            },
+                    )
+                }
             }
 
-            item(key = "pnr") {
-                ListItem(
-                    headlineContent = { Text("Check PNR Status") },
-                    supportingContent = { Text("Query Indian Railways for booking status") },
-                    trailingContent = {
-                        Icon(
-                            Icons.AutoMirrored.Filled.OpenInNew,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(20.dp),
-                        )
-                    },
-                    colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.background),
-                    modifier = Modifier
-                        .heightIn(min = 56.dp)
-                        .clickable(onClickLabel = "Open PNR status") {
+            item(key = "tools-header") {
+                SettingsSectionHeader("Tools")
+            }
+            item(key = "tools-group") {
+                SettingsGroup {
+                    SettingsNavRow(
+                        title = "Check PNR Status",
+                        subtitle = "Query Indian Railways for booking status",
+                        chevron = ChevronKind.External,
+                        onClickLabel = "Open PNR status",
+                        onClick = {
                             haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                             onPnrClick()
                         },
-                )
-                HorizontalDivider()
-            }
-
-            item(key = "timetable") {
-                ListItem(
-                    headlineContent = { Text("Timetable") },
-                    supportingContent = { Text(TIMETABLE_LABEL) },
-                    trailingContent = {
-                        Icon(
-                            Icons.Filled.ChevronRight,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(20.dp),
-                        )
-                    },
-                    colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.background),
-                    modifier = Modifier
-                        .heightIn(min = 56.dp)
-                        .clickable(onClickLabel = "Open timetable info") {
+                    )
+                    SettingsInsetDivider()
+                    SettingsNavRow(
+                        title = "Timetable",
+                        subtitle = TIMETABLE_LABEL,
+                        chevron = ChevronKind.Next,
+                        onClickLabel = "Open timetable info",
+                        onClick = {
                             haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                             onTimetableClick()
                         },
-                )
-                HorizontalDivider()
-            }
-            item(key = "alerts-log") {
-                ListItem(
-                    headlineContent = { Text("Alerts log") },
-                    supportingContent = { Text("Past notifications for tracked trains") },
-                    trailingContent = {
-                        Icon(
-                            Icons.Filled.ChevronRight,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(20.dp),
-                        )
-                    },
-                    colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.background),
-                    modifier = Modifier
-                        .heightIn(min = 56.dp)
-                        .clickable(onClickLabel = "Open alerts log") {
+                    )
+                    SettingsInsetDivider()
+                    SettingsNavRow(
+                        title = "Alerts log",
+                        subtitle = "Past notifications for tracked trains",
+                        chevron = ChevronKind.Next,
+                        onClickLabel = "Open alerts log",
+                        onClick = {
                             haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                             onAlertsClick()
                         },
-                )
-                HorizontalDivider()
-            }
-            item(key = "help") {
-                ListItem(
-                    headlineContent = { Text("Help & how to use") },
-                    supportingContent = { Text("Search, track, alarms, travel mode") },
-                    trailingContent = {
-                        Icon(
-                            Icons.Filled.ChevronRight,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(20.dp),
-                        )
-                    },
-                    colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.background),
-                    modifier = Modifier
-                        .heightIn(min = 56.dp)
-                        .clickable(onClickLabel = "Open help") {
+                    )
+                    SettingsInsetDivider()
+                    SettingsNavRow(
+                        title = "Help & how to use",
+                        subtitle = "Search, track, alarms, travel mode",
+                        chevron = ChevronKind.Next,
+                        onClickLabel = "Open help",
+                        onClick = {
                             haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                             onHelpClick()
                         },
-                )
-                HorizontalDivider()
+                    )
+                }
             }
 
             item(key = "about-header") {
                 SettingsSectionHeader("About")
             }
-            item(key = "version") {
-                ListItem(
-                    headlineContent = { Text("App version") },
-                    supportingContent = {
-                        Text("${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})")
-                    },
-                    colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.background),
-                    modifier = Modifier.heightIn(min = 56.dp),
-                )
-                HorizontalDivider()
-            }
-            item(key = "source") {
-                ListItem(
-                    headlineContent = { Text("Source code") },
-                    supportingContent = { Text(SOURCE_LABEL) },
-                    trailingContent = {
-                        Icon(
-                            Icons.AutoMirrored.Filled.OpenInNew,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(20.dp),
-                        )
-                    },
-                    colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.background),
-                    modifier = Modifier
-                        .heightIn(min = 56.dp)
-                        .clickable(role = Role.Button, onClickLabel = "Open source code on GitHub") {
+            item(key = "about-group") {
+                SettingsGroup {
+                    ListItem(
+                        headlineContent = { Text("App version") },
+                        supportingContent = {
+                            Text("${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})")
+                        },
+                        colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+                        modifier = Modifier.heightIn(min = 56.dp),
+                    )
+                    SettingsInsetDivider()
+                    SettingsNavRow(
+                        title = "Source code",
+                        subtitle = SOURCE_LABEL,
+                        chevron = ChevronKind.External,
+                        onClickLabel = "Open source code on GitHub",
+                        onClick = {
                             haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                             uriHandler.openUri(SOURCE_URL)
                         },
-                )
-                HorizontalDivider()
+                    )
+                    SettingsInsetDivider()
+                    ListItem(
+                        headlineContent = { Text("Timetable data") },
+                        supportingContent = { Text("GTFS snapshot · Aug 2026") },
+                        colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+                        modifier = Modifier.heightIn(min = 44.dp),
+                    )
+                    SettingsInsetDivider()
+                    ListItem(
+                        headlineContent = { Text("License") },
+                        supportingContent = {
+                            Text("Train schedules © Indian Railways. TrainKraft is for personal, non-commercial use.")
+                        },
+                        colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+                        modifier = Modifier.heightIn(min = 56.dp),
+                    )
+                }
             }
-            item(key = "gtfs") {
-                ListItem(
-                    headlineContent = { Text("Timetable data") },
-                    supportingContent = { Text("GTFS snapshot · Aug 2026") },
-                    colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.background),
-                    modifier = Modifier.heightIn(min = 44.dp),
-                )
-                HorizontalDivider()
-            }
-            item(key = "license") {
-                ListItem(
-                    headlineContent = { Text("License") },
-                    supportingContent = {
-                        Text("Train schedules © Indian Railways. TrainKraft is for personal, non-commercial use.")
-                    },
-                    colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.background),
-                    modifier = Modifier.heightIn(min = 56.dp),
-                )
-                HorizontalDivider()
-            }
+
             item(key = "legal-header") {
                 SettingsSectionHeader("Legal")
             }
-            item(key = "terms") {
-                ListItem(
-                    headlineContent = { Text("Terms of use") },
-                    supportingContent = { Text("Personal use, unofficial app, data as-is") },
-                    trailingContent = {
-                        Icon(
-                            Icons.Filled.ChevronRight,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(20.dp),
-                        )
-                    },
-                    colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.background),
-                    modifier = Modifier
-                        .heightIn(min = 56.dp)
-                        .clickable(onClickLabel = "Open terms of use") {
+            item(key = "legal-group") {
+                SettingsGroup {
+                    SettingsNavRow(
+                        title = "Terms of use",
+                        subtitle = "Personal use, unofficial app, data as-is",
+                        chevron = ChevronKind.Next,
+                        onClickLabel = "Open terms of use",
+                        onClick = {
                             haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                             onTermsClick()
                         },
-                )
-                HorizontalDivider()
-            }
-            item(key = "privacy") {
-                ListItem(
-                    headlineContent = { Text("Privacy policy") },
-                    supportingContent = { Text("On-device data, no account, no analytics") },
-                    trailingContent = {
-                        Icon(
-                            Icons.Filled.ChevronRight,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(20.dp),
-                        )
-                    },
-                    colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.background),
-                    modifier = Modifier
-                        .heightIn(min = 56.dp)
-                        .clickable(onClickLabel = "Open privacy policy") {
+                    )
+                    SettingsInsetDivider()
+                    SettingsNavRow(
+                        title = "Privacy policy",
+                        subtitle = "On-device data, no account, no analytics",
+                        chevron = ChevronKind.Next,
+                        onClickLabel = "Open privacy policy",
+                        onClick = {
                             haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                             onPrivacyClick()
                         },
-                )
-                HorizontalDivider()
-            }
-            item(key = "licenses") {
-                ListItem(
-                    headlineContent = { Text("Open-source licenses") },
-                    supportingContent = { Text("Libraries that power TrainKraft") },
-                    trailingContent = {
-                        Icon(
-                            Icons.Filled.ChevronRight,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(20.dp),
-                        )
-                    },
-                    colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.background),
-                    modifier = Modifier
-                        .heightIn(min = 56.dp)
-                        .clickable(onClickLabel = "Open open-source licenses") {
+                    )
+                    SettingsInsetDivider()
+                    SettingsNavRow(
+                        title = "Open-source licenses",
+                        subtitle = "Libraries that power TrainKraft",
+                        chevron = ChevronKind.Next,
+                        onClickLabel = "Open open-source licenses",
+                        onClick = {
                             haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                             onLicensesClick()
                         },
-                )
-                HorizontalDivider()
+                    )
+                }
             }
+
             item(key = "share-header") {
                 SettingsSectionHeader("Share")
             }
-            item(key = "share-app") {
-                ListItem(
-                    headlineContent = { Text("Share app") },
-                    supportingContent = { Text("Send the GitHub link to a friend") },
-                    trailingContent = {
-                        Icon(
-                            Icons.Filled.Share,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(20.dp),
-                        )
-                    },
-                    colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.background),
-                    modifier = Modifier
-                        .heightIn(min = 56.dp)
-                        .clickable(onClickLabel = "Share TrainKraft") {
+            item(key = "share-group") {
+                SettingsGroup {
+                    SettingsNavRow(
+                        title = "Share app",
+                        subtitle = "Send the GitHub link to a friend",
+                        chevron = ChevronKind.Share,
+                        onClickLabel = "Share TrainKraft",
+                        onClick = {
                             haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                             val send = Intent(Intent.ACTION_SEND).apply {
                                 type = "text/plain"
@@ -459,55 +375,30 @@ fun SettingsScreen(
                             }
                             context.startActivity(Intent.createChooser(send, "Share TrainKraft"))
                         },
-                )
-                HorizontalDivider()
-            }
-            item(key = "star") {
-                ListItem(
-                    headlineContent = { Text("Star on GitHub") },
-                    supportingContent = { Text(SOURCE_LABEL) },
-                    trailingContent = {
-                        Icon(
-                            Icons.AutoMirrored.Filled.OpenInNew,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(20.dp),
-                        )
-                    },
-                    colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.background),
-                    modifier = Modifier
-                        .heightIn(min = 56.dp)
-                        .clickable(role = Role.Button, onClickLabel = "Open source code on GitHub") {
+                    )
+                    SettingsInsetDivider()
+                    SettingsNavRow(
+                        title = "Star on GitHub",
+                        subtitle = SOURCE_LABEL,
+                        chevron = ChevronKind.External,
+                        onClickLabel = "Open source code on GitHub",
+                        onClick = {
                             haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                             uriHandler.openUri(SOURCE_URL)
                         },
-                )
-                HorizontalDivider()
-            }
-            item(key = "report") {
-                ListItem(
-                    headlineContent = { Text("Report an issue") },
-                    supportingContent = { Text("Suggest a feature or report a bug") },
-                    trailingContent = {
-                        Icon(
-                            Icons.AutoMirrored.Filled.OpenInNew,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(20.dp),
-                        )
-                    },
-                    colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.background),
-                    modifier = Modifier
-                        .heightIn(min = 56.dp)
-                        .clickable(role = Role.Button, onClickLabel = "Open issue reporter on GitHub") {
+                    )
+                    SettingsInsetDivider()
+                    SettingsNavRow(
+                        title = "Report an issue",
+                        subtitle = "Suggest a feature or report a bug",
+                        chevron = ChevronKind.External,
+                        onClickLabel = "Open issue reporter on GitHub",
+                        onClick = {
                             haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                             uriHandler.openUri(ISSUE_URL)
                         },
-                )
-                HorizontalDivider()
-            }
-            item(key = "bottom-spacer") {
-                Spacer(Modifier.padding(KraftSpacing.Spacing16))
+                    )
+                }
             }
         }
     }
@@ -592,15 +483,70 @@ fun SettingsScreen(
     }
 }
 
+/** Grouped card: tonal surface, 16dp radius, hairline outline. */
+@Composable
+private fun SettingsGroup(content: @Composable () -> Unit) {
+    Surface(
+        shape = MaterialTheme.shapes.large,
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        modifier = Modifier
+            .fillMaxWidth()
+            .cardOutline(MaterialTheme.shapes.large),
+    ) {
+        Column { content() }
+    }
+}
+
+/** Inset divider between grouped rows — never full-bleed. */
+@Composable
+private fun SettingsInsetDivider() {
+    HorizontalDivider(modifier = Modifier.padding(start = KraftSpacing.Spacing16))
+}
+
+private enum class ChevronKind { Next, External, Share }
+
+@Composable
+private fun SettingsNavRow(
+    title: String,
+    subtitle: String,
+    chevron: ChevronKind,
+    onClickLabel: String,
+    onClick: () -> Unit,
+) {
+    val icon = when (chevron) {
+        ChevronKind.Next -> Icons.Filled.ChevronRight
+        ChevronKind.External -> Icons.AutoMirrored.Filled.OpenInNew
+        ChevronKind.Share -> Icons.Filled.Share
+    }
+    ListItem(
+        headlineContent = { Text(title) },
+        supportingContent = { Text(subtitle) },
+        trailingContent = {
+            Icon(
+                icon,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                modifier = Modifier.size(20.dp),
+            )
+        },
+        colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+        modifier = Modifier
+            .heightIn(min = 56.dp)
+            .clickable(onClickLabel = onClickLabel, onClick = onClick),
+    )
+}
+
 @Composable
 private fun SettingsSectionHeader(text: String) {
     Text(
         text = text.uppercase(),
-        style = MaterialTheme.typography.labelMedium,
-        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+        style = MaterialTheme.typography.labelMedium.copy(letterSpacing = 0.8.sp),
+        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
         modifier = Modifier.padding(
-            horizontal = KraftSpacing.Spacing16,
-            vertical = KraftSpacing.Spacing8,
+            start = KraftSpacing.Spacing4,
+            end = KraftSpacing.Spacing4,
+            top = KraftSpacing.Spacing8,
+            bottom = KraftSpacing.Spacing4,
         ),
     )
 }

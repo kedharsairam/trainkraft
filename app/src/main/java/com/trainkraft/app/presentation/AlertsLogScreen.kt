@@ -131,6 +131,7 @@ private fun AlertLogRow(alert: AlertLogEntity, nowEpochMs: Long) {
             .fillMaxWidth()
             .clip(RoundedCornerShape(KraftRadius.Standard))
             .background(MaterialTheme.colorScheme.surfaceContainerLow)
+            .cardOutline(RoundedCornerShape(KraftRadius.Standard))
             .semantics {
                 contentDescription =
                     "Alert for train ${alert.trainNumber}: ${alert.title}. ${alert.body}. $age."

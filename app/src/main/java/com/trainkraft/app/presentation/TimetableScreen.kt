@@ -1,6 +1,7 @@
 package com.trainkraft.app.presentation
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
@@ -42,6 +43,7 @@ import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import com.kraft.ui.components.KraftTopBar
+import com.kraft.ui.tokens.KraftRadius
 import com.kraft.ui.tokens.KraftSpacing
 import com.trainkraft.app.data.TimetableVersion
 import com.trainkraft.app.data.TimetableVersionChecker
@@ -191,6 +193,7 @@ fun TimetableScreen(
                 },
                 enabled = localLoaded && local != null && check != TimetableCheck.Checking,
                 modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(KraftRadius.Medium),
             ) {
                 Text("Check for updates")
             }

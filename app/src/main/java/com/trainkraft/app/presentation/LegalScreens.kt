@@ -20,6 +20,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.kraft.ui.components.KraftTopBar
 import com.kraft.ui.tokens.KraftSpacing
@@ -268,6 +269,7 @@ private fun LegalSection(title: String, body: @Composable () -> Unit) {
     Text(
         text = title,
         style = MaterialTheme.typography.titleMedium,
+        fontWeight = FontWeight.SemiBold,
         color = MaterialTheme.colorScheme.onSurface,
         modifier = Modifier.padding(top = KraftSpacing.Spacing8),
     )
