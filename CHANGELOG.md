@@ -2,6 +2,25 @@
 
 All notable changes to TrainKraft are documented here.
 
+## [0.6.0] - 2026-09-25
+
+### Added
+- Settings expansion: timetable info, on-device alerts log, help, terms, privacy, open-source licenses, share/star/issue links
+- Grounded legal screens (help, terms, privacy) and OSS licenses screen (Apache-2.0 §4 attribution, generated from dependencies)
+- Search history with clear-all; on-device alerts log (`user.db` v4→v5); timetable version + on-demand update check; travel speed line
+- TalkBack action labels on all settings rows
+- Visual polish over every screen: hairline card outlines, stepped container depth (kraft-ui container-scale fix), letterspaced section headers, neutral type badges, headline/pill de-duplication, Between route-line hero (dep ── duration ── arr), grouped Settings/Licenses cards with inset dividers
+
+### Fixed
+- Station board header drew under the transparent top bar (missing content insets)
+- Coach-position row wrapped its last token ("B 8") instead of scrolling
+- Search results ran full-bleed under a padded home (gained screen-edge padding)
+- Scheduled times no longer wear live-green (reserved for live delays/cancellations)
+
+### Changed
+- Schedule times, chips, and in-card buttons lift off their cards again (kraft-ui `surfaceContainerHigh` no longer collapses onto Low)
+- Product law holds: everything shown is live, actual, or published — nothing computed about the future
+
 ## [0.5.0] - 2026-09-24
 
 ### Added
