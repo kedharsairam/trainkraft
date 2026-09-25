@@ -1,7 +1,9 @@
 package com.trainkraft.app.presentation
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -11,10 +13,8 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Icon
@@ -111,6 +111,13 @@ fun LicensesScreen(onBack: () -> Unit) {
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(paddingValues),
+                contentPadding = PaddingValues(
+                    start = KraftSpacing.ScreenEdge,
+                    end = KraftSpacing.ScreenEdge,
+                    top = KraftSpacing.Spacing8,
+                    bottom = KraftSpacing.Spacing16,
+                ),
+                verticalArrangement = Arrangement.spacedBy(KraftSpacing.Spacing12),
             ) {
                 // Shipped libraries first, test-only ones last (generator sorts).
                 item(key = "intro") {
@@ -120,18 +127,32 @@ fun LicensesScreen(onBack: () -> Unit) {
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(
-                            horizontal = KraftSpacing.Spacing16,
-                            vertical = KraftSpacing.Spacing8,
+                            horizontal = KraftSpacing.Spacing4,
+                            vertical = KraftSpacing.Spacing4,
                         ),
                     )
-                    HorizontalDivider()
                 }
-                items(entries, key = { it.name }) { entry ->
-                    LicenseRow(entry = entry)
-                    HorizontalDivider()
-                }
-                item(key = "bottom-spacer") {
-                    Spacer(Modifier.padding(KraftSpacing.Spacing16))
+                item(key = "group") {
+                    Surface(
+                        shape = MaterialTheme.shapes.large,
+                        color = MaterialTheme.colorScheme.surfaceContainerLow,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .cardOutline(MaterialTheme.shapes.large),
+                    ) {
+                        Column {
+                            entries.forEachIndexed { index, entry ->
+                                LicenseRow(entry = entry)
+                                if (index != entries.lastIndex) {
+                                    HorizontalDivider(
+                                        modifier = Modifier.padding(
+                                            start = KraftSpacing.Spacing16,
+                                        ),
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -181,19 +202,20 @@ private fun LicenseRow(entry: LicenseEntry) {
         },
         trailingContent = {
             Surface(
-                shape = RoundedCornerShape(8.dp),
+                shape = MaterialTheme.shapes.extraLarge,
                 color = MaterialTheme.colorScheme.secondaryContainer,
                 contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                modifier = Modifier.cardOutline(MaterialTheme.shapes.extraLarge),
             ) {
                 Text(
                     text = shortLicense(entry.license),
-                    style = MaterialTheme.typography.labelLarge,
+                    style = MaterialTheme.typography.labelMedium,
                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
                 )
             }
         },
         colors = ListItemDefaults.colors(
-            containerColor = MaterialTheme.colorScheme.background,
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
         ),
         modifier = Modifier
             .fillMaxWidth()

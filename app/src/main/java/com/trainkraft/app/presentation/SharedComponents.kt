@@ -1,13 +1,31 @@
 package com.trainkraft.app.presentation
 
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.trainkraft.app.ui.theme.KraftSpacing
+
+/**
+ * Hairline card outline — 1dp [outlineVariant] at half alpha, drawn over the
+ * card's own shape. Dark-theme cards otherwise melt into the near-black
+ * background; this lifts them without elevation shadows (which read muddy
+ * on OLED black).
+ */
+@Composable
+fun Modifier.cardOutline(shape: Shape = MaterialTheme.shapes.medium): Modifier =
+    this.border(
+        width = 1.dp,
+        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f),
+        shape = shape,
+    )
 
 /** Shared train-type label (GTFS route_type, may be null/unknown). */
 fun trainTypeLabel(type: String?): String {
@@ -29,11 +47,13 @@ fun trainTypeLabel(type: String?): String {
 fun SectionHeader(text: String) {
     Text(
         text = text.uppercase(),
-        style = MaterialTheme.typography.labelMedium,
-        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+        style = MaterialTheme.typography.labelMedium.copy(letterSpacing = 0.8.sp),
+        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
         modifier = Modifier.padding(
-            horizontal = KraftSpacing.spacing16,
-            vertical = KraftSpacing.spacing8,
+            start = KraftSpacing.spacing4,
+            end = KraftSpacing.spacing4,
+            top = KraftSpacing.spacing8,
+            bottom = KraftSpacing.spacing4,
         ),
     )
 }
@@ -41,7 +61,7 @@ fun SectionHeader(text: String) {
 @Composable
 fun DayBadge(dayOffset: Int) {
     Surface(
-        shape = MaterialTheme.shapes.small,
+        shape = MaterialTheme.shapes.extraLarge,
         color = MaterialTheme.colorScheme.secondaryContainer,
     ) {
         Text(
@@ -57,16 +77,16 @@ fun DayBadge(dayOffset: Int) {
 }
 
 @Composable
-fun TypeBadge(text: String, modifier: Modifier = Modifier, color: Color = MaterialTheme.colorScheme.primaryContainer) {
+fun TypeBadge(text: String, modifier: Modifier = Modifier, color: Color = MaterialTheme.colorScheme.surfaceContainerHigh) {
     Surface(
         shape = MaterialTheme.shapes.small,
         color = color,
-        modifier = modifier,
+        modifier = modifier.cardOutline(MaterialTheme.shapes.small),
     ) {
         Text(
             text = text,
             style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onPrimaryContainer,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(
                 horizontal = KraftSpacing.spacing8,
                 vertical = KraftSpacing.spacing2,

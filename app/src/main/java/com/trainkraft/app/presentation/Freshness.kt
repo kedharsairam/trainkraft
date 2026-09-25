@@ -1,6 +1,7 @@
 package com.trainkraft.app.presentation
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -52,9 +53,10 @@ sealed interface FreshnessState {
 }
 
 // Apple system palette (DESIGN.md — one accent per semantic, used sparingly).
-private val FreshGreen = Color(0xFF34C759)
+// Anchored to the Aurora tokens so status color never drifts from brand.
+private val FreshGreen = Color(0xFF30D158)
 private val FreshAmber = Color(0xFFFF9F0A)
-private val FreshRed = Color(0xFFFF3B30)
+private val FreshRed = Color(0xFFFF453A)
 
 /** Tabular (non-jittering) figures — every time, km, delay, distance. */
 fun tabularFigures(style: TextStyle): TextStyle = style.copy(fontFeatureSettings = "tnum")
@@ -178,8 +180,13 @@ private fun StatusCapsule(
         modifier = modifier
             .clip(RoundedCornerShape(percent = 50))
             .background(accent.copy(alpha = 0.12f))
+            .border(
+                width = 1.dp,
+                color = accent.copy(alpha = 0.32f),
+                shape = RoundedCornerShape(percent = 50),
+            )
             .semantics { contentDescription = spoken }
-            .padding(horizontal = 8.dp, vertical = 4.dp),
+            .padding(horizontal = 10.dp, vertical = 5.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
@@ -193,7 +200,7 @@ private fun StatusCapsule(
             text = label,
             style = tabularFigures(MaterialTheme.typography.labelMedium),
             color = accent,
-            fontWeight = FontWeight.Medium,
+            fontWeight = FontWeight.SemiBold,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
