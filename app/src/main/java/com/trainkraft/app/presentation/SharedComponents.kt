@@ -11,7 +11,7 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.trainkraft.app.ui.theme.KraftSpacing
+import com.kraft.ui.tokens.KraftSpacing
 
 /**
  * Hairline card outline — 1dp [outlineVariant] at half alpha, drawn over the
@@ -50,10 +50,10 @@ fun SectionHeader(text: String) {
         style = MaterialTheme.typography.labelMedium.copy(letterSpacing = 0.8.sp),
         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
         modifier = Modifier.padding(
-            start = KraftSpacing.spacing4,
-            end = KraftSpacing.spacing4,
-            top = KraftSpacing.spacing8,
-            bottom = KraftSpacing.spacing4,
+            start = KraftSpacing.Spacing4,
+            end = KraftSpacing.Spacing4,
+            top = KraftSpacing.Spacing8,
+            bottom = KraftSpacing.Spacing4,
         ),
     )
 }
@@ -69,8 +69,8 @@ fun DayBadge(dayOffset: Int) {
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSecondaryContainer,
             modifier = Modifier.padding(
-                horizontal = KraftSpacing.spacing8,
-                vertical = KraftSpacing.spacing2,
+                horizontal = KraftSpacing.Spacing8,
+                vertical = KraftSpacing.Spacing2,
             ),
         )
     }
@@ -88,8 +88,8 @@ fun TypeBadge(text: String, modifier: Modifier = Modifier, color: Color = Materi
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(
-                horizontal = KraftSpacing.spacing8,
-                vertical = KraftSpacing.spacing2,
+                horizontal = KraftSpacing.Spacing8,
+                vertical = KraftSpacing.Spacing2,
             ),
         )
     }
