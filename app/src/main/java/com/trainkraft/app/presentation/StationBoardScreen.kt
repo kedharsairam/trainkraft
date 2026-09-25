@@ -173,7 +173,9 @@ fun StationBoardScreen(
             }
             else -> {
                 LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(paddingValues),
                     contentPadding = PaddingValues(
                         start = KraftSpacing.ScreenEdge,
                         end = KraftSpacing.ScreenEdge,
@@ -224,6 +226,7 @@ private fun StationBoardHeader(
             .fillMaxWidth()
             .clip(RoundedCornerShape(KraftRadius.Standard))
             .background(MaterialTheme.colorScheme.surfaceContainerLow)
+            .cardOutline(RoundedCornerShape(KraftRadius.Standard))
             .padding(KraftSpacing.Spacing16),
         verticalArrangement = Arrangement.spacedBy(KraftSpacing.Spacing8),
     ) {
@@ -315,6 +318,7 @@ private fun DepartureCard(
             }
             .clip(RoundedCornerShape(KraftRadius.Standard))
             .background(MaterialTheme.colorScheme.surfaceContainerLow)
+            .cardOutline(RoundedCornerShape(KraftRadius.Standard))
             .clickable(
                 interactionSource = interaction,
                 indication = null,
@@ -403,7 +407,7 @@ private fun DepartureCard(
                 color = if (departure.cancelled) {
                     MaterialTheme.colorScheme.error
                 } else {
-                    KraftColors.AuroraGreen
+                    MaterialTheme.colorScheme.onSurface
                 },
                 maxLines = 1,
             )

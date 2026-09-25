@@ -6,6 +6,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -15,6 +16,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ConfirmationNumber
@@ -133,6 +135,7 @@ private fun QuickActionTile(
             }
             .clip(RoundedCornerShape(KraftRadius.Standard))
             .background(MaterialTheme.colorScheme.surfaceContainerLow)
+            .cardOutline(RoundedCornerShape(KraftRadius.Standard))
             .clickable(
                 interactionSource = interaction,
                 indication = null,
@@ -150,12 +153,22 @@ private fun QuickActionTile(
             .heightIn(min = 88.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(
-            icon,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.size(KraftIconSize.Large),
-        )
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier
+                .size(KraftIconSize.XLarge)
+                .clip(CircleShape)
+                .background(
+                    MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
+                ),
+        ) {
+            Icon(
+                icon,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(KraftIconSize.Medium),
+            )
+        }
         Spacer(Modifier.width(KraftSpacing.Spacing12))
         Text(
             text = label,
@@ -209,6 +222,7 @@ fun AlertsStatusRow(
             .fillMaxWidth()
             .clip(RoundedCornerShape(KraftRadius.Standard))
             .background(MaterialTheme.colorScheme.surfaceContainerLow)
+            .cardOutline(RoundedCornerShape(KraftRadius.Standard))
             .clickable(
                 role = Role.Button,
                 onClickLabel = "Open settings",
@@ -226,7 +240,8 @@ fun AlertsStatusRow(
         Icon(
             icon,
             contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            tint = if (tone == PillTone.Danger) MaterialTheme.colorScheme.error
+            else MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.size(KraftIconSize.Medium),
         )
         Spacer(Modifier.width(KraftSpacing.Spacing8))
@@ -310,6 +325,7 @@ private fun TrackedTrainRow(
             }
             .clip(RoundedCornerShape(KraftRadius.Standard))
             .background(MaterialTheme.colorScheme.surfaceContainerLow)
+            .cardOutline(RoundedCornerShape(KraftRadius.Standard))
             .semantics { contentDescription = trackedCardDescription(row, live) }
             .clickable(
                 interactionSource = interaction,

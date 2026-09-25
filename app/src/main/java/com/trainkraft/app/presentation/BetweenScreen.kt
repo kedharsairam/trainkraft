@@ -3,6 +3,7 @@ package com.trainkraft.app.presentation
 import android.app.Application
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -36,13 +37,14 @@ import androidx.compose.material.icons.filled.SwapVert
 import androidx.compose.material.icons.filled.Train
 import androidx.compose.material.icons.outlined.Train
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
@@ -63,7 +65,6 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -198,6 +199,11 @@ fun BetweenScreen(
                                 .size(KraftSpacing.TouchTarget)
                                 .clip(CircleShape)
                                 .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                                .border(
+                                    width = 1.dp,
+                                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f),
+                                    shape = CircleShape,
+                                )
                                 .clickable(
                                     role = Role.Button,
                                     onClickLabel = "Swap stations",
@@ -345,6 +351,12 @@ private fun DateCarousel(
                     .background(
                         if (selected) MaterialTheme.colorScheme.primary
                         else MaterialTheme.colorScheme.surfaceContainerLow,
+                    )
+                    .border(
+                        width = 1.dp,
+                        color = if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
+                        else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f),
+                        shape = RoundedCornerShape(KraftRadius.Standard),
                     )
                     .clickable(
                         role = Role.Button,
@@ -505,7 +517,14 @@ private fun ToolbarChip(
                 if (selected) MaterialTheme.colorScheme.primary
                 else MaterialTheme.colorScheme.surfaceContainerHigh,
             )
+            .border(
+                width = 1.dp,
+                color = if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
+                else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f),
+                shape = RoundedCornerShape(KraftRadius.Pill),
+            )
             .clickable(role = Role.Button, onClickLabel = label, onClick = onClick)
+            .heightIn(min = 40.dp)
             .padding(
                 horizontal = KraftSpacing.Spacing12,
                 vertical = KraftSpacing.Spacing8,
@@ -544,6 +563,7 @@ private fun BetweenTrainCard(
             }
             .clip(RoundedCornerShape(KraftRadius.Standard))
             .background(MaterialTheme.colorScheme.surfaceContainerLow)
+            .cardOutline(RoundedCornerShape(KraftRadius.Standard))
             .clickable(
                 interactionSource = interaction,
                 indication = null,
@@ -583,7 +603,8 @@ private fun BetweenTrainCard(
             }
         }
 
-        // Line 2 (hero): dep — duration — arr.
+        // Line 2 (hero): dep — route line with duration — arr. Times are
+        // static schedule (onSurface); only live delays ever take color.
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
@@ -594,7 +615,6 @@ private fun BetweenTrainCard(
                     style = tabularFigures(MaterialTheme.typography.titleLarge),
                     fontWeight = FontWeight.SemiBold,
                     fontFamily = FontFamily.Monospace,
-                    color = KraftColors.AuroraGreen,
                     maxLines = 1,
                 )
                 Text(
@@ -605,13 +625,37 @@ private fun BetweenTrainCard(
                     maxLines = 1,
                 )
             }
-            Text(
-                text = formatDuration(durationMin),
-                style = tabularFigures(MaterialTheme.typography.labelMedium),
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center,
-                maxLines = 1,
-            )
+            Row(
+                modifier = Modifier.weight(1.1f),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(KraftSpacing.Spacing4),
+            ) {
+                HorizontalDivider(
+                    modifier = Modifier.weight(1f),
+                    thickness = 1.dp,
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f),
+                )
+                Surface(
+                    shape = RoundedCornerShape(KraftRadius.Pill),
+                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                ) {
+                    Text(
+                        text = formatDuration(durationMin),
+                        style = tabularFigures(MaterialTheme.typography.labelMedium),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        modifier = Modifier.padding(
+                            horizontal = KraftSpacing.Spacing8,
+                            vertical = KraftSpacing.Spacing4,
+                        ),
+                    )
+                }
+                HorizontalDivider(
+                    modifier = Modifier.weight(1f),
+                    thickness = 1.dp,
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f),
+                )
+            }
             Column(
                 modifier = Modifier.weight(1f),
                 horizontalAlignment = Alignment.End,
@@ -715,12 +759,22 @@ private fun BetweenTrainCard(
         // NavHost exposes a single onTrainClick(number) callback).
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.End,
+            horizontalArrangement = Arrangement.spacedBy(
+                KraftSpacing.Spacing8,
+                Alignment.End,
+            ),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            TextButton(onClick = onTrainClick) {
+            OutlinedButton(
+                onClick = onTrainClick,
+                shape = RoundedCornerShape(KraftRadius.Medium),
+            ) {
                 Text("Schedule")
             }
-            TextButton(onClick = onTrainClick) {
+            androidx.compose.material3.Button(
+                onClick = onTrainClick,
+                shape = RoundedCornerShape(KraftRadius.Medium),
+            ) {
                 Text("Track")
             }
         }
@@ -783,7 +837,9 @@ private fun StationPicker(
             Surface(
                 shape = RoundedCornerShape(KraftRadius.Standard),
                 color = MaterialTheme.colorScheme.surfaceContainerLow,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .cardOutline(RoundedCornerShape(KraftRadius.Standard)),
             ) {
                 Column {
                     results.take(5).forEach { station ->
@@ -827,6 +883,11 @@ private fun StationPicker(
                     .clip(RoundedCornerShape(KraftRadius.Pill))
                     .background(
                         KraftColors.AuroraGreen.copy(alpha = KraftConstants.ContainerAlpha),
+                    )
+                    .border(
+                        width = 1.dp,
+                        color = KraftColors.AuroraGreen.copy(alpha = 0.4f),
+                        shape = RoundedCornerShape(KraftRadius.Pill),
                     )
                     .padding(
                         horizontal = KraftSpacing.Spacing12,

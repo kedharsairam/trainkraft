@@ -2,12 +2,14 @@ package com.trainkraft.app.presentation
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -172,6 +174,7 @@ fun SearchScreen(
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(KraftRadius.Hero))
                     .background(MaterialTheme.colorScheme.surfaceContainerLow)
+                    .cardOutline(RoundedCornerShape(KraftRadius.Hero))
                     .padding(KraftSpacing.Spacing16),
             ) {
                 // Search pill — frosted surface, no underline, 44dp rhythm
@@ -244,7 +247,9 @@ fun SearchScreen(
                     ShimmerList(
                         rows = 8,
                         contentDescription = "Searching trains and stations",
-                        modifier = Modifier.fillMaxSize(),
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(horizontal = KraftSpacing.ScreenEdge),
                     )
                 }
                 query.isBlank() -> {
@@ -256,7 +261,7 @@ fun SearchScreen(
                         modifier = Modifier
                             .fillMaxSize()
                             .verticalScroll(homeScroll),
-                        verticalArrangement = Arrangement.spacedBy(KraftSpacing.Spacing8),
+                        verticalArrangement = Arrangement.spacedBy(KraftSpacing.Spacing12),
                     ) {
                         if (recentSearches.isNotEmpty()) {
                             RecentSearchesSection(
@@ -314,6 +319,11 @@ fun SearchScreen(
                     }
                     LazyColumn(
                         modifier = Modifier.fillMaxSize().nestedScroll(nestedScrollConnection),
+                        contentPadding = PaddingValues(
+                            start = KraftSpacing.ScreenEdge,
+                            end = KraftSpacing.ScreenEdge,
+                            bottom = KraftSpacing.Spacing16,
+                        ),
                         verticalArrangement = Arrangement.spacedBy(KraftSpacing.Spacing8),
                     ) {
                         if (trainResults.isNotEmpty()) {
@@ -376,6 +386,11 @@ private fun GlassIconButton(
             }
             .clip(CircleShape)
             .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+            .border(
+                width = 1.dp,
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f),
+                shape = CircleShape,
+            )
             .clickable(
                 interactionSource = interaction,
                 indication = null,
@@ -452,6 +467,7 @@ private fun TrainCard(train: TrainEntity, onClick: () -> Unit) {
             }
             .clip(RoundedCornerShape(KraftRadius.Standard))
             .background(MaterialTheme.colorScheme.surfaceContainerLow)
+            .cardOutline(RoundedCornerShape(KraftRadius.Standard))
             .clickable(
                 interactionSource = interaction,
                 indication = null,
@@ -533,6 +549,7 @@ private fun StationCard(station: StationEntity, onClick: () -> Unit) {
             }
             .clip(RoundedCornerShape(KraftRadius.Standard))
             .background(MaterialTheme.colorScheme.surfaceContainerLow)
+            .cardOutline(RoundedCornerShape(KraftRadius.Standard))
             .clickable(
                 interactionSource = interaction,
                 indication = null,
@@ -620,7 +637,7 @@ private fun RecentSearchesSection(
                     )
                     .padding(
                         horizontal = KraftSpacing.Spacing16,
-                        vertical = KraftSpacing.Spacing8,
+                        vertical = KraftSpacing.Spacing12,
                     ),
             )
         }
@@ -630,6 +647,7 @@ private fun RecentSearchesSection(
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(KraftRadius.Standard))
                     .background(MaterialTheme.colorScheme.surfaceContainerLow)
+                    .cardOutline(RoundedCornerShape(KraftRadius.Standard))
                     .clickable(
                         role = Role.Button,
                         onClickLabel = "Search again for $item",

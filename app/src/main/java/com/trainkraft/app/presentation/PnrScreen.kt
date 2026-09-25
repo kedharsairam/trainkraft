@@ -208,8 +208,8 @@ private fun PnrInputStep(
             enabled = pnrInput.length == 10 && !isLoading,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(48.dp),
-            shape = RoundedCornerShape(KraftRadius.Standard),
+                .height(52.dp),
+            shape = RoundedCornerShape(KraftRadius.Medium),
         ) {
             if (isLoading) {
                 CircularProgressIndicator(
@@ -323,8 +323,8 @@ private fun PnrCaptchaStep(
             enabled = captchaInput.isNotBlank() && !isLoading,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(48.dp),
-            shape = RoundedCornerShape(KraftRadius.Standard),
+                .height(52.dp),
+            shape = RoundedCornerShape(KraftRadius.Medium),
         ) {
             if (isLoading) {
                 CircularProgressIndicator(
@@ -397,8 +397,8 @@ private fun PnrResultStep(
             onClick = onNewQuery,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(48.dp),
-            shape = RoundedCornerShape(KraftRadius.Standard),
+                .height(52.dp),
+            shape = RoundedCornerShape(KraftRadius.Medium),
         ) {
             Text("Check Another PNR")
         }
@@ -411,9 +411,11 @@ private fun ResultSection(
     content: @Composable () -> Unit,
 ) {
     Surface(
-        shape = RoundedCornerShape(KraftRadius.Standard),
+        shape = RoundedCornerShape(KraftRadius.Medium),
         color = MaterialTheme.colorScheme.surfaceContainerLow,
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .cardOutline(RoundedCornerShape(KraftRadius.Medium)),
     ) {
         Column(
             modifier = Modifier.padding(KraftSpacing.Spacing16),
@@ -421,9 +423,9 @@ private fun ResultSection(
         ) {
             Text(
                 text = title,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface,
             )
             HorizontalDivider()
             content()

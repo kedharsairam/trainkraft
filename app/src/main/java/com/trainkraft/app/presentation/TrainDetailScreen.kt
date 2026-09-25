@@ -4,8 +4,6 @@ import android.Manifest
 import android.app.Application
 import android.content.Intent
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -63,12 +61,10 @@ import com.trainkraft.app.presentation.PermissionFlow.LiveTrackingRequirement
 import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
@@ -543,64 +539,49 @@ fun TrainDetailScreen(
                                             horizontalArrangement = Arrangement.Center,
                                             modifier = Modifier
                                                 .fillMaxWidth()
-                                                .clip(RoundedCornerShape(KraftRadius.Pill))
-                                                .background(
-                                                    MaterialTheme.colorScheme.error.copy(
-                                                        alpha = 0.12f,
-                                                    ),
-                                                )
-                                                .clickable(
-                                                    role = Role.Button,
-                                                    onClickLabel = "Retry live status",
-                                                    onClick = {
-                                                        haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                                        viewModel.refreshLiveStatus()
-                                                    },
-                                                )
-                                                .heightIn(min = KraftSpacing.TouchTarget)
-                                                .padding(horizontal = KraftSpacing.Spacing16),
+                                                .heightIn(min = 52.dp),
                                         ) {
-                                            Text(
-                                                text = "Retry",
-                                                style = MaterialTheme.typography.labelLarge,
-                                                color = MaterialTheme.colorScheme.error,
-                                                fontWeight = FontWeight.SemiBold,
-                                            )
+                                            androidx.compose.material3.OutlinedButton(
+                                                onClick = {
+                                                    haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                                    viewModel.refreshLiveStatus()
+                                                },
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .heightIn(min = 52.dp),
+                                                shape = RoundedCornerShape(KraftRadius.Medium),
+                                            ) {
+                                                Text(
+                                                    text = "Retry",
+                                                    style = MaterialTheme.typography.labelLarge,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                )
+                                            }
                                         }
                                     }
                                 }
                             }
                             if (!isLiveLoading && liveError == null) {
                                 item(key = "live-check") {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.Center,
+                                    androidx.compose.material3.Button(
+                                        onClick = {
+                                            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                            viewModel.refreshLiveStatus()
+                                        },
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .clip(RoundedCornerShape(KraftRadius.Pill))
-                                            .background(MaterialTheme.colorScheme.primary)
-                                            .clickable(
-                                                role = Role.Button,
-                                                onClickLabel = "Check live status",
-                                                onClick = {
-                                                    haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                                    viewModel.refreshLiveStatus()
-                                                },
-                                            )
-                                            .heightIn(min = KraftSpacing.TouchTarget)
-                                            .padding(horizontal = KraftSpacing.Spacing16),
+                                            .heightIn(min = 52.dp),
+                                        shape = RoundedCornerShape(KraftRadius.Medium),
                                     ) {
                                         Icon(
                                             Icons.Filled.SatelliteAlt,
                                             contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.onPrimary,
                                             modifier = Modifier.size(18.dp),
                                         )
                                         Spacer(Modifier.width(KraftSpacing.Spacing8))
                                         Text(
-                                            text = "Live Status",
+                                            text = "Check live status",
                                             style = MaterialTheme.typography.labelLarge,
-                                            color = MaterialTheme.colorScheme.onPrimary,
                                             fontWeight = FontWeight.SemiBold,
                                         )
                                     }
