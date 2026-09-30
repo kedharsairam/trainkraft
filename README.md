@@ -45,7 +45,7 @@ Private train tracking for India. No ads. No analytics. No trackers.
 | Network | OkHttp + NTES AppServAnd API |
 | Crypto | AES-128-CBC (NTES payload) |
 | Background | WorkManager (live notifications) |
-| Testing | JUnit4 + Robolectric (50 tests) |
+| Testing | JUnit4 + Robolectric (311 unit tests) |
 
 ---
 
@@ -71,9 +71,38 @@ Requires JDK 21+, Android SDK 37.
 
 ---
 
+## Permissions
+
+Nine are declared. Three are only requested when you turn on live tracking; the
+rest have to exist before that is possible.
+
+| Permission | Asked by | Why |
+| --- | --- | --- |
+| `INTERNET` | live status, PNR | The only way to reach NTES and Indian Railways |
+| `ACCESS_NETWORK_STATE` | every network call | Tells a live answer from a cached one, so the app can say which you are looking at |
+| `POST_NOTIFICATIONS` | delay alerts | Nothing is posted without it, and it stays off until you opt in |
+| `ACCESS_FINE_LOCATION` | travel mode | A foreground service you start when you board, so your real arrival is noticed rather than assumed from the timetable |
+| `ACCESS_COARSE_LOCATION` | travel mode | The coarse grant the platform pairs with the fine one |
+| `FOREGROUND_SERVICE_LOCATION` | travel mode | Keeps that check running with the screen off |
+| `FOREGROUND_SERVICE_DATA_SYNC` | delay polling | The worker watching for a delay getting worse |
+| `SCHEDULE_EXACT_ALARM` | station alarms | An alarm set for 04:12 that fires at 04:12 |
+| `FOREGROUND_SERVICE` | both services | The base grant either service type needs |
+
+Background location is deliberately not requested. Travel mode runs between two
+taps of yours and does not follow you home.
+
 ## Privacy
 
-No permissions beyond internet + notifications. No analytics. No tracking. See source.
+No accounts. No analytics. No trackers. The timetable lives on the device, and
+outbound queries carry a train number and nothing else.
+
+## Support
+
+If you enjoy TrainKraft, buy me a coffee:
+
+<p align="center">
+  <a href="https://buymeacoffee.com/kedhartech"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" width="182"></a>
+</p>
 
 ## License
 
