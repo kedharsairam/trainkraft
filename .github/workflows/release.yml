@@ -9,7 +9,8 @@ on:
   workflow_dispatch:
 
 # Same composite-build constraint as ci.yml: settings.gradle.kts does
-# includeBuild("../kraft-ui"), so kraft-ui must sit beside trainkraft/.
+# includeBuild("../kraft-foundation"), so kraft-foundation must sit beside
+# trainkraft/.
 # NOTE: softprops/action-gh-release `files` globs resolve against the
 # workspace root (not this working-directory), hence the trainkraft/ prefix.
 defaults:
@@ -27,14 +28,12 @@ jobs:
         with:
           path: trainkraft
 
-      # kraft-ui is private; GITHUB_TOKEN can't see it — same read-only
-      # deploy key as ci.yml (secret KRAFT_UI_DEPLOY_KEY).
-      - name: Checkout kraft-ui (composite-build sibling)
+      # kraft-foundation is public; no deploy key, no secret.
+      - name: Checkout kraft-foundation (composite-build sibling)
         uses: actions/checkout@v4
         with:
-          repository: kedharsairam/kraft-ui
-          path: kraft-ui
-          ssh-key: ${{ secrets.KRAFT_UI_DEPLOY_KEY }}
+          repository: kedharsairam/kraft-foundation
+          path: kraft-foundation
 
       - name: Set up JDK 21
         uses: actions/setup-java@v4

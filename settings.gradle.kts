@@ -17,9 +17,10 @@ dependencyResolutionManagement {
 rootProject.name = "TrainKraft"
 include(":app")
 
-// Kraft Foundation — shared design system + core utilities.
-// Local composite build, no publishing. See github.com/kedharsairam/kraft-ui.
-includeBuild("../kraft-ui") {
+// Kraft Foundation — the shared design system, the core utilities, and the standard
+// that says how both are to be used. Local composite build, no publishing.
+// See github.com/kedharsairam/kraft-foundation.
+includeBuild("../kraft-foundation") {
     dependencySubstitution {
         substitute(module("com.kraft:kraft-ui")).using(project(":kraft-ui"))
         substitute(module("com.kraft:kraft-core")).using(project(":kraft-core"))
