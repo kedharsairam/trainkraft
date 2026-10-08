@@ -156,8 +156,8 @@ internal fun AnswerHeader(
                 }
                 if (isLiveLoading) {
                     CircularProgressIndicator(
-                        modifier = Modifier.size(20.dp),
-                        strokeWidth = 2.dp,
+                        modifier = Modifier.size(KraftSpacing.Spacing20),
+                        strokeWidth = KraftSpacing.Spacing2,
                     )
                 } else {
                     IconButton(onClick = onRefresh) {
@@ -204,7 +204,7 @@ internal fun JourneyProgress(coveredKm: Int, totalKm: Int) {
             progress = { shown },
             modifier = Modifier
                 .fillMaxWidth()
-                .height(4.dp)
+                .height(KraftSpacing.Spacing4)
                 .clip(RoundedCornerShape(percent = 50)),
         )
     }
@@ -426,7 +426,7 @@ private fun TimelineRowShell(
 ) {
     val clickableMod = if (coachAvailable && onCoachClick != null) {
         Modifier
-            .heightIn(min = 56.dp)
+            .heightIn(min = KraftSpacing.Spacing56)
             .clip(RoundedCornerShape(KraftRadius.Standard))
             .clickable(
                 role = Role.Button,
@@ -485,7 +485,7 @@ private fun PastStopRow(
         marker = {
             Box(
                 modifier = Modifier
-                    .size(20.dp)
+                    .size(KraftSpacing.Spacing20)
                     .background(muted.copy(alpha = 0.15f), CircleShape),
                 contentAlignment = Alignment.Center,
             ) {
@@ -493,7 +493,7 @@ private fun PastStopRow(
                     Icons.Filled.Check,
                     contentDescription = null,
                     tint = muted,
-                    modifier = Modifier.size(12.dp),
+                    modifier = Modifier.size(KraftSpacing.Spacing12),
                 )
             }
         },
@@ -588,7 +588,7 @@ private fun CurrentStopCard(
         shape = RoundedCornerShape(KraftRadius.Standard),
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
         border = androidx.compose.foundation.BorderStroke(
-            width = 1.dp,
+            width = KraftSpacing.BorderWidth,
             color = MaterialTheme.colorScheme.primary.copy(alpha = 0.35f),
         ),
         modifier = Modifier
@@ -601,7 +601,7 @@ private fun CurrentStopCard(
                 .then(
                     if (stop.coachComposition().isNotBlank()) {
                         Modifier
-                            .heightIn(min = 56.dp)
+                            .heightIn(min = KraftSpacing.Spacing56)
                             .clip(RoundedCornerShape(KraftRadius.Standard))
                             .clickable(
                                 role = Role.Button,
@@ -621,7 +621,7 @@ private fun CurrentStopCard(
             ) {
                 Box(
                     modifier = Modifier
-                        .size(10.dp)
+                        .size(KraftSpacing.Spacing8)
                         .background(
                             KraftColors.AuroraGreen.copy(alpha = dotAlpha),
                             CircleShape,
@@ -710,9 +710,9 @@ private fun FutureStopRow(
         marker = {
             Box(
                 modifier = Modifier
-                    .size(20.dp)
+                    .size(KraftSpacing.Spacing20)
                     .border(
-                        2.dp,
+                        KraftSpacing.Spacing2,
                         MaterialTheme.colorScheme.outlineVariant,
                         CircleShape,
                     ),
@@ -787,7 +787,7 @@ private fun StopAlarmRow(
     ) {
         IconButton(
             onClick = onToggleAlarm,
-            modifier = Modifier.size(48.dp),
+            modifier = Modifier.size(KraftSpacing.Spacing48),
         ) {
             Icon(
                 if (scheduled) Icons.Filled.NotificationsActive else Icons.Filled.NotificationsNone,
@@ -807,7 +807,7 @@ private fun StopAlarmRow(
             )
             androidx.compose.material3.TextButton(
                 onClick = onToggleAlarm,
-                modifier = Modifier.heightIn(min = 48.dp),
+                modifier = Modifier.heightIn(min = KraftSpacing.Spacing48),
             ) {
                 Text("Cancel")
             }
@@ -886,7 +886,7 @@ private fun NonStopDisclosure(stop: LiveStopDto) {
             horizontalArrangement = Arrangement.spacedBy(KraftSpacing.Spacing4),
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(min = 56.dp)
+                .heightIn(min = KraftSpacing.Spacing56)
                 .clip(RoundedCornerShape(KraftRadius.Standard))
                 .clickable(
                     role = Role.Button,
@@ -959,7 +959,7 @@ private fun ReversalDividerRow() {
                 Icons.Filled.SwapVert,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(16.dp),
+                modifier = Modifier.size(KraftSpacing.Spacing16),
             )
             Text(
                 text = "Train reverses direction here",
@@ -985,7 +985,7 @@ private fun CoachTokenRow(tokens: List<String>) {
             Surface(
                 shape = MaterialTheme.shapes.extraSmall,
                 color = MaterialTheme.colorScheme.surfaceContainerLowest,
-                modifier = Modifier.padding(vertical = 2.dp),
+                modifier = Modifier.padding(vertical = KraftSpacing.Spacing2),
             ) {
                 Text(
                     text = coach,
@@ -993,7 +993,7 @@ private fun CoachTokenRow(tokens: List<String>) {
                         .copy(fontFamily = FontFamily.Monospace),
                     color = MaterialTheme.colorScheme.onSurface,
                     maxLines = 1,
-                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp),
+                    modifier = Modifier.padding(horizontal = KraftSpacing.Spacing6, vertical = KraftSpacing.Spacing4),
                 )
             }
         }
@@ -1055,7 +1055,7 @@ internal fun CoachPositionSection(data: LiveStatusDto, highlightIndex: Int? = nu
             Icon(
                 Icons.Filled.Info,
                 contentDescription = null,
-                modifier = Modifier.size(16.dp),
+                modifier = Modifier.size(KraftSpacing.Spacing16),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Text(
@@ -1162,9 +1162,9 @@ internal fun ScheduleStopRow(
     ) {
         Box(
             modifier = Modifier
-                .size(32.dp)
+                .size(KraftSpacing.Spacing32)
                 .border(
-                    width = 1.dp,
+                    width = KraftSpacing.BorderWidth,
                     color = endpointColor.copy(alpha = 0.45f),
                     shape = CircleShape,
                 )
@@ -1295,7 +1295,7 @@ internal fun TravelModeEntry(onBoard: () -> Unit) {
             onClick = onBoard,
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(min = 52.dp),
+                .heightIn(min = TrainMetrics.RowHeight),
             shape = RoundedCornerShape(KraftRadius.Medium),
         ) {
             Text(

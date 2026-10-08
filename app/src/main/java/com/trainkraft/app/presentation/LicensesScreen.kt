@@ -182,7 +182,7 @@ private fun LicenseRow(entry: LicenseEntry) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 if (expanded) {
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(KraftSpacing.Spacing4))
                     Text(
                         text = entry.license,
                         style = MaterialTheme.typography.bodySmall,
@@ -210,7 +210,7 @@ private fun LicenseRow(entry: LicenseEntry) {
                 Text(
                     text = shortLicense(entry.license),
                     style = MaterialTheme.typography.labelMedium,
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                    modifier = Modifier.padding(horizontal = KraftSpacing.Spacing12, vertical = KraftSpacing.Spacing6),
                 )
             }
         },
@@ -219,7 +219,7 @@ private fun LicenseRow(entry: LicenseEntry) {
         ),
         modifier = Modifier
             .fillMaxWidth()
-            .heightIn(min = 56.dp)
+            .heightIn(min = KraftSpacing.Spacing56)
             .clickable(
                 role = Role.Button,
                 onClickLabel = if (expanded) "Collapse license details" else "Expand license details",

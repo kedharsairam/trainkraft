@@ -387,7 +387,7 @@ private fun GlassIconButton(
             .clip(CircleShape)
             .background(MaterialTheme.colorScheme.surfaceContainerHigh)
             .border(
-                width = 1.dp,
+                width = KraftSpacing.BorderWidth,
                 color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f),
                 shape = CircleShape,
             )

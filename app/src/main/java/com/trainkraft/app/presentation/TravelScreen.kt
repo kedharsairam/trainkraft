@@ -102,7 +102,7 @@ fun TravelScreen(
                 navigationIcon = {
                     IconButton(
                         onClick = onClose,
-                        modifier = Modifier.size(56.dp),
+                        modifier = Modifier.size(KraftSpacing.Spacing56),
                     ) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Close travel mode")
                     }
@@ -129,8 +129,8 @@ fun TravelScreen(
                     horizontalArrangement = Arrangement.spacedBy(KraftSpacing.Spacing8),
                 ) {
                     CircularProgressIndicator(
-                        modifier = Modifier.size(20.dp),
-                        strokeWidth = 2.dp,
+                        modifier = Modifier.size(KraftSpacing.Spacing20),
+                        strokeWidth = KraftSpacing.Spacing2,
                     )
                     Text(
                         text = "Starting travel mode…",
@@ -198,7 +198,7 @@ fun TravelScreen(
                 },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(min = 64.dp),
+                    .heightIn(min = KraftSpacing.Spacing64),
                 shape = RoundedCornerShape(KraftRadius.Medium),
             ) {
                 Text(
@@ -255,7 +255,7 @@ private fun TravelArrivalCard(code: String) {
     ) {
         Box(
             modifier = Modifier
-                .size(10.dp)
+                .size(KraftSpacing.Spacing8)
                 .background(
                     MaterialTheme.colorScheme.primary.copy(alpha = dotAlpha),
                     CircleShape,

@@ -27,6 +27,8 @@ import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import com.kraft.ui.tokens.KraftSpacing
+import com.kraft.ui.tokens.KraftColors
 
 /*
  * Shared freshness / status primitives (P3–P5 design contract).
@@ -51,12 +53,6 @@ sealed interface FreshnessState {
     /** Nothing usable — the screen must offer a retry path. */
     data object Failed : FreshnessState
 }
-
-// Apple system palette (DESIGN.md — one accent per semantic, used sparingly).
-// Anchored to the Aurora tokens so status color never drifts from brand.
-private val FreshGreen = Color(0xFF30D158)
-private val FreshAmber = Color(0xFFFF9F0A)
-private val FreshRed = Color(0xFFFF453A)
 
 /** Tabular (non-jittering) figures — every time, km, delay, distance. */
 fun tabularFigures(style: TextStyle): TextStyle = style.copy(fontFeatureSettings = "tnum")
@@ -102,17 +98,17 @@ fun formatDelay(delayMinutes: Int): String = when {
 fun FreshnessBadge(state: FreshnessState, modifier: Modifier = Modifier) {
     val (accent, label, spoken) = when (state) {
         is FreshnessState.Live -> Triple(
-            FreshGreen,
+            KraftColors.AuroraGreen,
             "Live · ${state.serverTimeLabel}",
             "Live data, updated ${state.serverTimeLabel}",
         )
         is FreshnessState.Cached -> Triple(
-            FreshAmber,
+            KraftColors.AuroraOrange,
             "Cached · ${state.ageLabel}",
             "Cached data from ${state.ageLabel}",
         )
         FreshnessState.Failed -> Triple(
-            FreshRed,
+            KraftColors.AuroraRed,
             "Couldn't refresh",
             "Live data unavailable",
         )
@@ -132,9 +128,9 @@ fun FreshnessBadge(state: FreshnessState, modifier: Modifier = Modifier) {
 @Composable
 fun DelayChip(delayMinutes: Int, modifier: Modifier = Modifier) {
     val accent = when {
-        delayMinutes <= 0 -> FreshGreen
-        delayMinutes < AMBER_DELAY_THRESHOLD_MIN -> FreshAmber
-        else -> FreshRed
+        delayMinutes <= 0 -> KraftColors.AuroraGreen
+        delayMinutes < AMBER_DELAY_THRESHOLD_MIN -> KraftColors.AuroraOrange
+        else -> KraftColors.AuroraRed
     }
     val label = formatDelay(delayMinutes)
     StatusCapsule(
@@ -155,10 +151,10 @@ enum class PillTone { Live, Late, Neutral, Danger }
 @Composable
 fun StatusPill(label: String, tone: PillTone, modifier: Modifier = Modifier) {
     val accent = when (tone) {
-        PillTone.Live -> FreshGreen
-        PillTone.Late -> FreshAmber
+        PillTone.Live -> KraftColors.AuroraGreen
+        PillTone.Late -> KraftColors.AuroraOrange
         PillTone.Neutral -> MaterialTheme.colorScheme.onSurfaceVariant
-        PillTone.Danger -> FreshRed
+        PillTone.Danger -> KraftColors.AuroraRed
     }
     val spoken = when (tone) {
         PillTone.Live -> "Status $label"
@@ -181,21 +177,21 @@ private fun StatusCapsule(
             .clip(RoundedCornerShape(percent = 50))
             .background(accent.copy(alpha = 0.12f))
             .border(
-                width = 1.dp,
+                width = KraftSpacing.BorderWidth,
                 color = accent.copy(alpha = 0.32f),
                 shape = RoundedCornerShape(percent = 50),
             )
             .semantics { contentDescription = spoken }
-            .padding(horizontal = 10.dp, vertical = 5.dp),
+            .padding(horizontal = KraftSpacing.Spacing8, vertical = KraftSpacing.Spacing4),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
             modifier = Modifier
-                .size(6.dp)
+                .size(KraftSpacing.Spacing6)
                 .clip(CircleShape)
                 .background(accent),
         )
-        Spacer(modifier = Modifier.width(6.dp))
+        Spacer(modifier = Modifier.width(KraftSpacing.Spacing6))
         Text(
             text = label,
             style = tabularFigures(MaterialTheme.typography.labelMedium),

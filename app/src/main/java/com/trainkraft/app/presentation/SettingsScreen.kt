@@ -151,7 +151,7 @@ fun SettingsScreen(
                         },
                         colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
                         modifier = Modifier
-                            .heightIn(min = 56.dp)
+                            .heightIn(min = KraftSpacing.Spacing56)
                             .clickable(role = Role.Switch) {
                                 haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                 scope.launch {
@@ -179,13 +179,13 @@ fun SettingsScreen(
                                     Icons.Filled.ChevronRight,
                                     contentDescription = null,
                                     tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                                    modifier = Modifier.size(20.dp),
+                                    modifier = Modifier.size(KraftSpacing.Spacing20),
                                 )
                             }
                         },
                         colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
                         modifier = Modifier
-                            .heightIn(min = 56.dp)
+                            .heightIn(min = KraftSpacing.Spacing56)
                             .clickable(role = Role.Button, onClickLabel = "Change cache duration") {
                                 haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                 showCacheSheet.value = true
@@ -212,7 +212,7 @@ fun SettingsScreen(
                         },
                         colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
                         modifier = Modifier
-                            .heightIn(min = 56.dp)
+                            .heightIn(min = KraftSpacing.Spacing56)
                             .clickable(role = Role.Switch) {
                                 haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                 scope.launch {
@@ -285,7 +285,7 @@ fun SettingsScreen(
                             Text("${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})")
                         },
                         colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
-                        modifier = Modifier.heightIn(min = 56.dp),
+                        modifier = Modifier.heightIn(min = KraftSpacing.Spacing56),
                     )
                     SettingsInsetDivider()
                     SettingsNavRow(
@@ -303,7 +303,7 @@ fun SettingsScreen(
                         headlineContent = { Text("Timetable data") },
                         supportingContent = { Text("GTFS snapshot · Aug 2026") },
                         colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
-                        modifier = Modifier.heightIn(min = 44.dp),
+                        modifier = Modifier.heightIn(min = KraftSpacing.TouchTarget),
                     )
                     SettingsInsetDivider()
                     ListItem(
@@ -312,7 +312,7 @@ fun SettingsScreen(
                             Text("Train schedules © Indian Railways. TrainKraft is for personal, non-commercial use.")
                         },
                         colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
-                        modifier = Modifier.heightIn(min = 56.dp),
+                        modifier = Modifier.heightIn(min = KraftSpacing.Spacing56),
                     )
                 }
             }
@@ -420,7 +420,7 @@ fun SettingsScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = KraftSpacing.Spacing16, vertical = KraftSpacing.Spacing8),
-                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalArrangement = Arrangement.spacedBy(KraftSpacing.Spacing4),
                 ) {
                     Text(
                         text = "Cache duration",
@@ -439,7 +439,7 @@ fun SettingsScreen(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .heightIn(min = 52.dp)
+                            .heightIn(min = TrainMetrics.RowHeight)
                             .clickable(
                                 role = Role.Button,
                                 onClickLabel = "Set cache duration",
@@ -466,10 +466,10 @@ fun SettingsScreen(
                                 Icons.Filled.Check,
                                 contentDescription = "Selected",
                                 tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(22.dp),
+                                modifier = Modifier.size(KraftSpacing.Spacing20),
                             )
                         } else {
-                            Spacer(Modifier.width(22.dp))
+                            Spacer(Modifier.width(KraftSpacing.Spacing20))
                         }
                     }
                     if (hours != SettingsStore.CACHE_DURATION_OPTIONS.last()) {
@@ -526,12 +526,12 @@ private fun SettingsNavRow(
                 icon,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                modifier = Modifier.size(20.dp),
+                modifier = Modifier.size(KraftSpacing.Spacing20),
             )
         },
         colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
         modifier = Modifier
-            .heightIn(min = 56.dp)
+            .heightIn(min = KraftSpacing.Spacing56)
             .clickable(onClickLabel = onClickLabel, onClick = onClick),
     )
 }
@@ -540,7 +540,7 @@ private fun SettingsNavRow(
 private fun SettingsSectionHeader(text: String) {
     Text(
         text = text.uppercase(),
-        style = MaterialTheme.typography.labelMedium.copy(letterSpacing = 0.8.sp),
+        style = MaterialTheme.typography.labelMedium.copy(letterSpacing = 0.8.sp), // @kraft-lint-ignore type.no-raw-sp — uppercase header tracking, twice the shared 0.4
         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
         modifier = Modifier.padding(
             start = KraftSpacing.Spacing4,

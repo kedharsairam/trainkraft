@@ -22,7 +22,7 @@ import com.kraft.ui.tokens.KraftSpacing
 @Composable
 fun Modifier.cardOutline(shape: Shape = MaterialTheme.shapes.medium): Modifier =
     this.border(
-        width = 1.dp,
+        width = KraftSpacing.BorderWidth,
         color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f),
         shape = shape,
     )
@@ -47,7 +47,7 @@ fun trainTypeLabel(type: String?): String {
 fun SectionHeader(text: String) {
     Text(
         text = text.uppercase(),
-        style = MaterialTheme.typography.labelMedium.copy(letterSpacing = 0.8.sp),
+        style = MaterialTheme.typography.labelMedium.copy(letterSpacing = 0.8.sp), // @kraft-lint-ignore type.no-raw-sp — uppercase header tracking, twice the shared 0.4
         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
         modifier = Modifier.padding(
             start = KraftSpacing.Spacing4,

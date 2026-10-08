@@ -150,7 +150,7 @@ private fun QuickActionTile(
                 horizontal = KraftSpacing.Spacing16,
                 vertical = KraftSpacing.Spacing12,
             )
-            .heightIn(min = 88.dp),
+            .heightIn(min = TrainMetrics.HeroMinHeight),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(

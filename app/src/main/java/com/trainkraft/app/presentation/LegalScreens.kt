@@ -273,7 +273,7 @@ private fun LegalSection(title: String, body: @Composable () -> Unit) {
         color = MaterialTheme.colorScheme.onSurface,
         modifier = Modifier.padding(top = KraftSpacing.Spacing8),
     )
-    Spacer(modifier = Modifier.height(4.dp))
+    Spacer(modifier = Modifier.height(KraftSpacing.Spacing4))
     body()
     Spacer(modifier = Modifier.height(KraftSpacing.Spacing8))
 }

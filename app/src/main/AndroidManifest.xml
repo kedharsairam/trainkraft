@@ -1,7 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- Live running status via the NTES API (delays, ETAs, platforms). The bundled
+         timetable works without it; this is only for real-time data. -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Graceful offline fallback: cached and scheduled times when there is no signal. -->
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <!-- API 33+ (Tiramisu) runtime permission; auto-granted on install below 33. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />

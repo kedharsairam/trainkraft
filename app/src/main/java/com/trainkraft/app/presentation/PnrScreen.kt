@@ -208,13 +208,13 @@ private fun PnrInputStep(
             enabled = pnrInput.length == 10 && !isLoading,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(52.dp),
+                .height(TrainMetrics.RowHeight),
             shape = RoundedCornerShape(KraftRadius.Medium),
         ) {
             if (isLoading) {
                 CircularProgressIndicator(
-                    modifier = Modifier.size(20.dp),
-                    strokeWidth = 2.dp,
+                    modifier = Modifier.size(KraftSpacing.Spacing20),
+                    strokeWidth = KraftSpacing.Spacing2,
                     color = MaterialTheme.colorScheme.onPrimary,
                 )
             } else {
@@ -266,17 +266,17 @@ private fun PnrCaptchaStep(
                     contentDescription = "CAPTCHA image",
                     modifier = Modifier
                         .fillMaxWidth()
-                        .heightIn(min = 80.dp)
+                        .heightIn(min = TrainMetrics.CardMinHeight)
                         .padding(KraftSpacing.Spacing16),
                 )
             } else if (isLoading) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(120.dp),
+                        .height(TrainMetrics.LoadingBoxHeight),
                     contentAlignment = Alignment.Center,
                 ) {
-                    CircularProgressIndicator(modifier = Modifier.size(32.dp))
+                    CircularProgressIndicator(modifier = Modifier.size(KraftSpacing.Spacing32))
                 }
             }
         }
@@ -286,9 +286,9 @@ private fun PnrCaptchaStep(
             Icon(
                 Icons.Filled.Refresh,
                 contentDescription = null,
-                modifier = Modifier.size(18.dp),
+                modifier = Modifier.size(KraftSpacing.Spacing16),
             )
-            Spacer(Modifier.width(4.dp))
+            Spacer(Modifier.width(KraftSpacing.Spacing4))
             Text("Refresh Captcha")
         }
 
@@ -323,13 +323,13 @@ private fun PnrCaptchaStep(
             enabled = captchaInput.isNotBlank() && !isLoading,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(52.dp),
+                .height(TrainMetrics.RowHeight),
             shape = RoundedCornerShape(KraftRadius.Medium),
         ) {
             if (isLoading) {
                 CircularProgressIndicator(
-                    modifier = Modifier.size(20.dp),
-                    strokeWidth = 2.dp,
+                    modifier = Modifier.size(KraftSpacing.Spacing20),
+                    strokeWidth = KraftSpacing.Spacing2,
                     color = MaterialTheme.colorScheme.onPrimary,
                 )
             } else {
@@ -346,7 +346,7 @@ private fun PnrResultStep(
 ) {
     if (result == null) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            CircularProgressIndicator(modifier = Modifier.size(32.dp))
+            CircularProgressIndicator(modifier = Modifier.size(KraftSpacing.Spacing32))
         }
         return
     }
@@ -376,7 +376,7 @@ private fun PnrResultStep(
         if (result.passengers.isNotEmpty()) {
             ResultSection("Passengers") {
                 result.passengers.forEach { p ->
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                    HorizontalDivider(modifier = Modifier.padding(vertical = KraftSpacing.Spacing4))
                     Text(
                         text = "Passenger ${p.serialNumber}",
                         style = MaterialTheme.typography.titleSmall,
@@ -397,7 +397,7 @@ private fun PnrResultStep(
             onClick = onNewQuery,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(52.dp),
+                .height(TrainMetrics.RowHeight),
             shape = RoundedCornerShape(KraftRadius.Medium),
         ) {
             Text("Check Another PNR")
@@ -419,7 +419,7 @@ private fun ResultSection(
     ) {
         Column(
             modifier = Modifier.padding(KraftSpacing.Spacing16),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
+            verticalArrangement = Arrangement.spacedBy(KraftSpacing.Spacing6),
         ) {
             Text(
                 text = title,

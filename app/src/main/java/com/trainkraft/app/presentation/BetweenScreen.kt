@@ -200,7 +200,7 @@ fun BetweenScreen(
                                 .clip(CircleShape)
                                 .background(MaterialTheme.colorScheme.surfaceContainerHigh)
                                 .border(
-                                    width = 1.dp,
+                                    width = KraftSpacing.BorderWidth,
                                     color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f),
                                     shape = CircleShape,
                                 )
@@ -353,7 +353,7 @@ private fun DateCarousel(
                         else MaterialTheme.colorScheme.surfaceContainerLow,
                     )
                     .border(
-                        width = 1.dp,
+                        width = KraftSpacing.BorderWidth,
                         color = if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
                         else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f),
                         shape = RoundedCornerShape(KraftRadius.Standard),
@@ -518,13 +518,13 @@ private fun ToolbarChip(
                 else MaterialTheme.colorScheme.surfaceContainerHigh,
             )
             .border(
-                width = 1.dp,
+                width = KraftSpacing.BorderWidth,
                 color = if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
                 else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f),
                 shape = RoundedCornerShape(KraftRadius.Pill),
             )
             .clickable(role = Role.Button, onClickLabel = label, onClick = onClick)
-            .heightIn(min = 40.dp)
+            .heightIn(min = KraftSpacing.Spacing40)
             .padding(
                 horizontal = KraftSpacing.Spacing12,
                 vertical = KraftSpacing.Spacing8,
@@ -632,7 +632,7 @@ private fun BetweenTrainCard(
             ) {
                 HorizontalDivider(
                     modifier = Modifier.weight(1f),
-                    thickness = 1.dp,
+                    thickness = KraftSpacing.BorderWidth,
                     color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f),
                 )
                 Surface(
@@ -652,7 +652,7 @@ private fun BetweenTrainCard(
                 }
                 HorizontalDivider(
                     modifier = Modifier.weight(1f),
-                    thickness = 1.dp,
+                    thickness = KraftSpacing.BorderWidth,
                     color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f),
                 )
             }
@@ -683,7 +683,7 @@ private fun BetweenTrainCard(
                                 color = MaterialTheme.colorScheme.onSecondaryContainer,
                                 modifier = Modifier.padding(
                                     horizontal = KraftSpacing.Spacing6,
-                                    vertical = 2.dp,
+                                    vertical = KraftSpacing.Spacing2,
                                 ),
                             )
                         }
@@ -708,7 +708,7 @@ private fun BetweenTrainCard(
                 Box(
                     contentAlignment = Alignment.Center,
                     modifier = Modifier
-                        .size(28.dp)
+                        .size(KraftSpacing.Spacing32)
                         .clip(CircleShape)
                         .background(
                             if (runs) MaterialTheme.colorScheme.primary.copy(
@@ -885,7 +885,7 @@ private fun StationPicker(
                         KraftColors.AuroraGreen.copy(alpha = KraftConstants.ContainerAlpha),
                     )
                     .border(
-                        width = 1.dp,
+                        width = KraftSpacing.BorderWidth,
                         color = KraftColors.AuroraGreen.copy(alpha = 0.4f),
                         shape = RoundedCornerShape(KraftRadius.Pill),
                     )

@@ -96,6 +96,22 @@ taps of yours and does not follow you home.
 No accounts. No analytics. No trackers. The timetable lives on the device, and
 outbound queries carry a train number and nothing else.
 
+## Design
+
+Spacing, type, radius, motion and touch targets come from
+[kraft-foundation](https://github.com/kedharsairam/kraft-foundation), which is also where the
+standard this app is built to is written down. It targets **standard 1.0.0**, and
+`kraft-lint` in that repository is what checks it.
+
+This app was the first to consume the foundation and calls its `KraftTheme` directly rather
+than defining a theme — dark-only, which is what a timetable read at arm's length wants.
+The status colours it once declared privately (`FreshGreen`/`FreshAmber`/`FreshRed`) were
+byte-identical to the shared Aurora tokens and are gone; the app's own dimensions
+(`TrainMetrics`: the 52dp row height shared by eight screens, plus content minimums) stay
+local with their reasons.
+
+TrainKraft is the sixth of nine apps to move.
+
 ## Support
 
 If you enjoy TrainKraft, buy me a coffee:

@@ -1,5 +1,9 @@
 # TrainKraft pack pipeline (Phase A — Python side)
 
+> This pipeline builds data, not UI. The Android app's design standard is
+> [kraft-foundation](https://github.com/kedharsairam/kraft-foundation) (standard 1.0.0);
+> nothing here renders, so nothing here is subject to it.
+
 > PARKED (2026-09-24, reality doctrine): the delay-priors sweep has no
 > consumer — nothing in the app computes futures anymore. The fog/specials
 > path below stays valid whenever published programs need packing. Do not

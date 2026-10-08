@@ -87,9 +87,9 @@ import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
 
-// Divider aligns with station text: 32.dp seq badge + 12.dp gap + 12.dp indent.
+// Divider aligns with station text: KraftSpacing.Spacing32 seq badge + KraftSpacing.Spacing12 gap + KraftSpacing.Spacing12 indent.
 private val TimelineDividerStartPadding =
-    32.dp + KraftSpacing.Spacing12 + KraftSpacing.Spacing12
+    KraftSpacing.Spacing32 + KraftSpacing.Spacing12 + KraftSpacing.Spacing12
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -510,8 +510,8 @@ fun TrainDetailScreen(
                                         ),
                                     ) {
                                         CircularProgressIndicator(
-                                            modifier = Modifier.size(18.dp),
-                                            strokeWidth = 2.dp,
+                                            modifier = Modifier.size(KraftSpacing.Spacing16),
+                                            strokeWidth = KraftSpacing.Spacing2,
                                         )
                                         Text(
                                             text = "Loading live status…",
@@ -539,7 +539,7 @@ fun TrainDetailScreen(
                                             horizontalArrangement = Arrangement.Center,
                                             modifier = Modifier
                                                 .fillMaxWidth()
-                                                .heightIn(min = 52.dp),
+                                                .heightIn(min = TrainMetrics.RowHeight),
                                         ) {
                                             androidx.compose.material3.OutlinedButton(
                                                 onClick = {
@@ -548,7 +548,7 @@ fun TrainDetailScreen(
                                                 },
                                                 modifier = Modifier
                                                     .fillMaxWidth()
-                                                    .heightIn(min = 52.dp),
+                                                    .heightIn(min = TrainMetrics.RowHeight),
                                                 shape = RoundedCornerShape(KraftRadius.Medium),
                                             ) {
                                                 Text(
@@ -570,13 +570,13 @@ fun TrainDetailScreen(
                                         },
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .heightIn(min = 52.dp),
+                                            .heightIn(min = TrainMetrics.RowHeight),
                                         shape = RoundedCornerShape(KraftRadius.Medium),
                                     ) {
                                         Icon(
                                             Icons.Filled.SatelliteAlt,
                                             contentDescription = null,
-                                            modifier = Modifier.size(18.dp),
+                                            modifier = Modifier.size(KraftSpacing.Spacing16),
                                         )
                                         Spacer(Modifier.width(KraftSpacing.Spacing8))
                                         Text(
@@ -636,7 +636,7 @@ fun TrainDetailScreen(
                                         Icons.Outlined.SearchOff,
                                         contentDescription = null,
                                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.size(16.dp),
+                                        modifier = Modifier.size(KraftSpacing.Spacing16),
                                     )
                                     Text(
                                         text = "Timetable has ${schedule.size} stops · live above",

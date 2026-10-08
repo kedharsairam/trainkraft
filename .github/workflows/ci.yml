@@ -43,6 +43,12 @@ jobs:
       - name: Make gradlew executable
         run: chmod +x gradlew
 
+      # `quality.ci-runs-the-gate` fails if this step is removed. `../` because
+      # working-directory above is trainkraft/, and the foundation is a sibling
+      # of that directory rather than a child of it.
+      - name: Quality gate
+        run: node ../kraft-foundation/tools/kraft-lint/kraft-lint.js . --format github
+
       - name: Build debug APK
         run: ./gradlew assembleDebug --no-daemon
 
